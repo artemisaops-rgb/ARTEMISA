@@ -1,0 +1,40 @@
+@import "tailwindcss"; 
+
+:root{
+  --brand:#ff4d00;        /* naranja artemisa */
+  --brand-600:#ff4d00;
+  --brand-700:#e34500;
+  --ink:#0f172a;          /* slate-900 */
+  --muted:#64748b;        /* slate-500 */
+  --bg: #f8fafc;          /* slate-50 */
+
+  /* fallback para el espacio de la bottom bar si aún no se calculó */
+  --bottom-bar-space: 120px;
+}
+
+html, body, #root { height: 100%; }
+body{
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* helpers */
+.container-app{
+  @apply max-w-3xl mx-auto px-4;
+  /* ¡IMPORTANTE!: deja espacio real para la barra inferior */
+  padding-bottom: max(var(--bottom-bar-space, 120px), env(safe-area-inset-bottom));
+}
+.card{ @apply bg-white border border-gray-200 rounded-2xl shadow-sm; }
+.btn{
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold transition;
+}
+.btn-primary{
+  background: var(--brand); color:white;
+}
+.btn-primary:hover{ background: var(--brand-700); }
+.btn-ghost{ @apply border border-gray-300 bg-white hover:bg-gray-50; }
+.input{
+  @apply w-full rounded-xl border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-orange-200;
+}
+.label{ @apply text-sm text-gray-600 mb-1; }

@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function isImage() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*');
+    }
+    function max5MB() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+
+    // Fotos de apertura: cualquier nombre bajo /openings/*
+    match /openings/{fileId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage() && max5MB(); // solo imágenes y <=5MB
+    }
+
+    // Resto bloqueado para escritura por defecto
+    match /{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

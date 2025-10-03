@@ -1,0 +1,17 @@
+﻿rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuth() { return request.auth != null; }
+
+    match /openings/{path=**} {
+      allow read: if isAuth();
+      allow write: if isAuth()
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,155 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
+
+type Item = { id: string; name?: string };
+type Recipe = Record<string, number>;
+
+export default function RecipePicker({
+  productId,
+  value,
+  onChange,
+}: {
+  productId: string;
+  value: Recipe;
+  onChange: (r: Recipe) => void;
+}) {
+  const db = getFirestore();
+  const [open, setOpen] = useState(false);
+  const [inv, setInv] = useState<Item[]>([]);
+  const [q, setQ] = useState("");
+  const [grams, setGrams] = useState<number>(0);
+
+  useEffect(() => {
+    (async () => {
+      const snap = await getDocs(collection(db, "inventory"));
+      const list: Item[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+      setInv(list);
+    })();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    return inv.filter((i) => (i.name || i.id).toLowerCase().includes(t)).slice(0, 10);
+  }, [inv, q]);
+
+  const add = (id: string) => {
+    if (!id || !Number.isFinite(grams) || grams <= 0) return;
+    onChange({ ...value, [id]: grams });
+    setQ("");
+    setGrams(0);
+  };
+
+  const remove = (id: string) => {
+    const copy = { ...value };
+    delete copy[id];
+    onChange(copy);
+  };
+
+  const entries = Object.entries(value);
+
+  return (
+    <div className="mt-3 border rounded-xl">
+      {/* header */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3"
+      >
+        <span className="font-semibold">Receta</span>
+        <span className="text-xs text-slate-500">{open ? "Ocultar" : "Editar"}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4">
+          {/* pick row */}
+          <div className="flex flex-col md:flex-row gap-2">
+            <div className="relative flex-1">
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="Buscar insumo..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              {q && filtered.length > 0 && (
+                <div className="absolute z-10 left-0 right-0 mt-1 border rounded-lg bg-white max-h-44 overflow-auto">
+                  {filtered.map((i) => (
+                    <div
+                      key={i.id}
+                      className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => setQ(i.name || i.id)}
+                    >
+                      {i.name || i.id} <span className="text-xs text-slate-400">({i.id})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <input
+              type="number"
+              className="w-28 border rounded-lg px-3 py-2"
+              placeholder="g/ml/u"
+              value={grams || ""}
+              onChange={(e) => setGrams(Number(e.target.value))}
+            />
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-[var(--brand,#f97316)] text-white"
+              onClick={() => {
+                // si escribió el nombre, buscar id
+                const match = inv.find((i) => (i.name || i.id).toLowerCase() === q.trim().toLowerCase());
+                add(match ? match.id : q.trim());
+              }}
+            >
+              Añadir
+            </button>
+          </div>
+
+          {/* table */}
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th className="py-2">Ingrediente</th>
+                  <th className="py-2 w-32">Cantidad</th>
+                  <th className="py-2 w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.length === 0 && (
+                  <tr>
+                    <td className="py-2 text-slate-500" colSpan={3}>
+                      Sin insumos todavía.
+                    </td>
+                  </tr>
+                )}
+                {entries.map(([id, g]) => (
+                  <tr key={id} className="border-t">
+                    <td className="py-2">{inv.find((i) => i.id === id)?.name || id}</td>
+                    <td className="py-2">
+                      <input
+                        type="number"
+                        className="w-28 border rounded-lg px-2 py-1"
+                        value={g}
+                        onChange={(e) => onChange({ ...value, [id]: Number(e.target.value) })}
+                      />
+                    </td>
+                    <td className="py-2">
+                      <button className="text-red-600" onClick={() => remove(id)}>
+                        Quitar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+

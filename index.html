@@ -1,0 +1,53 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Marca / tema -->
+    <title>Artemisa</title>
+    <meta name="application-name" content="Artemisa" />
+    <meta name="description" content="Artemisa POS — ventas rápidas, inventario y reportes." />
+    <meta name="theme-color" content="#f97316" />
+
+    <!-- Manifest versionado para bustear caché -->
+    <link rel="manifest" href="/manifest.webmanifest?v=20251001-055013" />
+
+    <!-- Favicons (también versionados) -->
+    <link rel="icon" type="image/png" sizes="196x196" href="/icons/favicon-196-v2.png?v=20250924-3" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64-v2.png?v=20250924-3" />
+
+    <!-- iOS / Android PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Artemisa" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-icon-180.png" />
+
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <script>
+      // Captura temprana del beforeinstallprompt para tu botón "Instalar"
+      (function () {
+        window.__PWA__ = window.__PWA__ || { deferred: null };
+        window.addEventListener(
+          "beforeinstallprompt",
+          function (e) {
+            e.preventDefault();
+            window.__PWA__.deferred = e;
+            window.dispatchEvent(new CustomEvent("pwa:deferred-ready"));
+          },
+          { once: true }
+        );
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- La app registra el SW desde /src/main.tsx -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

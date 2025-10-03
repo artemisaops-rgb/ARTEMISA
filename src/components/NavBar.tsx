@@ -1,0 +1,67 @@
+import React, { useEffect, useRef } from "react";
+import { NavLink } from "react-router-dom";
+import { useRole } from "@/hooks/useRole";
+
+const Item = ({ to, label, icon }:{ to:string; label:string; icon:React.ReactNode; }) => (
+  <NavLink
+    to={to}
+    className={({ isActive }) =>
+      "flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-2xl " +
+      (isActive ? "text-white bg-[var(--brand,#f97316)]" : "text-slate-600")
+    }
+  >
+    <div className="w-5 h-5">{icon}</div>
+    <span className="text-[11px]">{label}</span>
+  </NavLink>
+);
+
+export default function NavBar() {
+  const ref = useRef<HTMLElement | null>(null);
+  const { role } = useRole(); // "owner" | "worker" | "client" | null
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const setSpace = () => {
+      const h = el.getBoundingClientRect().height || 88;
+      const space = Math.round(h + 24);
+      document.documentElement.style.setProperty("--bottom-bar-space", `${space}px`);
+    };
+    setSpace();
+    const ro = new ResizeObserver(setSpace);
+    ro.observe(el);
+    window.addEventListener("orientationchange", setSpace);
+    window.addEventListener("resize", setSpace);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("orientationchange", setSpace);
+      window.removeEventListener("resize", setSpace);
+    };
+  }, []);
+
+  const isWorker = role === "owner" || role === "worker";
+  const isClient = role === "client";
+
+  return (
+    <nav
+      ref={ref}
+      data-bottom-bar
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-xl bg-white border shadow-xl rounded-3xl px-2"
+      style={{ height: "var(--bottom-bar-h, 88px)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="h-full flex gap-1 items-center">
+        <Item to="/menu" label={"Men\u00FA"} icon={<svg viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>} />
+        <Item to="/carrito" label="Carrito" icon={<svg viewBox="0 0 24 24" fill="none"><path d="M6 6h14l-2 9H8L6 6Z" stroke="currentColor" strokeWidth="2" /><circle cx="9" cy="20" r="1.5" fill="currentColor" /><circle cx="17" cy="20" r="1.5" fill="currentColor" /></svg>} />
+        {isWorker && (
+          <Item to="/bodega" label="Bodega" icon={<svg viewBox="0 0 24 24" fill="none"><path d="M3 10l9-6 9 6v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8Z" stroke="currentColor" strokeWidth="2" /><path d="M7 20v-6h10v6" stroke="currentColor" strokeWidth="2" /></svg>} />
+        )}
+        <Item
+          to={isClient ? "/cliente" : "/clientes"}
+          label={isClient ? "Mi perfil" : "Clientes"}
+          icon={<svg viewBox="0 0 24 24" fill="none"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5 0-8 2.5-8 5v1h16v-1c0-2.5-3-5-8-5Z" stroke="currentColor" strokeWidth="2"/></svg>}
+        />
+        <Item to="/mas" label={"M\u00E1s"} icon={<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>} />
+      </div>
+    </nav>
+  );
+}

@@ -1,0 +1,72 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
+import { safeUpdate } from "@/lib/safeUpdate";
+import type { Product, Recipe } from "@/types";
+
+type Item = { id:string; name?:string; grams?:number; unit?: "g"|"ml"|"u" };
+export default function RecipeEditor({product}:{product:Product}) {
+  const db = getFirestore();
+  const [inventory,setInventory] = useState<Item[]>([]);
+  const [query,setQuery] = useState("");
+  const [grams,setGrams] = useState<number>(0);
+  const [selected,setSelected] = useState<Item|null>(null);
+
+  useEffect(()=>{ (async()=>{
+    const snap = await getDocs(collection(db,"inventory"));
+    const list:Item[] = [];
+    snap.forEach(d=> list.push({ id:d.id, ...(d.data() as any) }));
+    setInventory(list);
+  })(); },[]);
+
+  const filtered = useMemo(()=> inventory.filter(i => (i.name??i.id).toLowerCase().includes(query.toLowerCase())), [inventory,query]);
+
+  const add = async ()=>{
+    if(!selected || !Number.isFinite(grams) || grams<=0) return;
+    const recipe:Recipe = { ...(product.recipe||{}), [selected.id]: grams };
+    await safeUpdate(`products/${product.id}`, { recipe });
+    setSelected(null); setQuery(""); setGrams(0);
+  };
+
+  const remove = async (id:string)=>{
+    const r = {...(product.recipe||{})};
+    delete r[id];
+    await safeUpdate(`products/${product.id}`, { recipe: r });
+  };
+
+  const entries = Object.entries(product.recipe||{});
+
+  return (
+    <div className="mt-3 p-3 rounded-xl border bg-slate-50">
+      <div className="font-medium mb-2">Receta</div>
+      <div className="flex gap-2 mb-2">
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar insumo..." className="flex-1 border rounded-lg px-3 py-2" />
+        <input value={grams||""} onChange={e=>setGrams(Number(e.target.value))} type="number" placeholder="g/ml/u" className="w-32 border rounded-lg px-3 py-2" />
+        <button onClick={add} className="px-3 py-2 rounded-lg bg-orange-500 text-white">Aadir</button>
+      </div>
+      {query && (
+        <div className="max-h-40 overflow-auto border rounded-lg bg-white">
+          {filtered.map(i=>(
+            <div key={i.id} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={()=>{setSelected(i); setQuery(i.name||i.id);}}>
+              {(i.name||i.id)} <span className="text-slate-400 text-xs">({i.id})</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 space-y-2">
+        {entries.length===0 && <div className="text-slate-500 text-sm">Sin insumos an.</div>}
+        {entries.map(([id,g])=>(
+          <div key={id} className="flex items-center justify-between bg-white border rounded-lg px-3 py-2">
+            <div className="text-sm">{id}</div>
+            <div className="text-sm text-slate-600">{g} g/ml/u</div>
+            <button onClick={()=>remove(id)} className="text-red-600 text-sm">Quitar</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+
+

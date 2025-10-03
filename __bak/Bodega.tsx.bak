@@ -1,0 +1,651 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  updateDoc,
+  doc,
+  deleteDoc,
+  orderBy,
+  query,
+  serverTimestamp,
+  runTransaction,
+  where,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { db, getOrgId } from "@/services/firebase";
+
+type Unit = "g" | "ml" | "u";
+type Frequency = "daily" | "weekly" | "monthly";
+type Kind = "consumable" | "equipment";
+
+type Item = {
+  id: string;
+  name: string;
+  unit: Unit;
+  stock: number;
+  minStock: number;
+  costPerUnit: number;
+  supplier?: string;   // compat UI
+  provider?: string;   // compat modelo
+  frequency?: Frequency;
+  periodicity?: "daily" | "monthly"; // solo lectura (legacy)
+  kind?: Kind;
+};
+
+const FREQ_LABEL: Record<Frequency, string> = {
+  daily: "Diario",
+  weekly: "Semanal",
+  monthly: "Mensual",
+};
+
+type SortKey = "name" | "stock" | "minStock" | "costPerUnit";
+
+export default function Bodega() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [q, setQ] = useState("");
+
+  // filtros
+  const [filterKind, setFilterKind] = useState<Kind | "all">("all");
+  const [filterFreq, setFilterFreq] = useState<Frequency | "all">("all");
+
+  // orden
+  const [sortBy, setSortBy] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // edición por fila
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<Item>>({});
+
+  // modal Nuevo
+  const [showNew, setShowNew] = useState(false);
+  const [newItem, setNewItem] = useState<Partial<Item>>({
+    name: "",
+    unit: "g",
+    stock: 0,
+    minStock: 0,
+    costPerUnit: 0,
+    supplier: "",
+    kind: "consumable",
+    frequency: "daily",
+  });
+
+  // modal movimiento de stock
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveType, setMoveType] = useState<"in" | "out">("in");
+  const [moveQty, setMoveQty] = useState<number>(0);
+  const [moveReason, setMoveReason] = useState<string>("");
+  const [moveItem, setMoveItem] = useState<Item | null>(null);
+
+  // -------- data --------
+  useEffect(() => {
+    const orgId = getOrgId();
+    const qy = query(
+      collection(db, "inventoryItems"),
+      where("orgId", "==", orgId),
+      orderBy("name")
+    );
+    const unsub = onSnapshot(qy, (snap) => {
+      const list: Item[] = snap.docs.map((d) => {
+        const x: any = d.data();
+        const frequency: Frequency =
+          (x.frequency as Frequency) ||
+          (x.periodicity as Frequency) ||
+          "daily";
+        const kind: Kind = (x.kind as Kind) || "consumable";
+        const unit: Unit = (x.unit as Unit) || "g";
+        const stock = Number(x.stock) || 0;
+        const minStock = Number(x.minStock) || 0;
+        const costPerUnit = Number(x.costPerUnit) || 0;
+        const supplier = String(x.supplier ?? x.provider ?? "");
+        return {
+          id: d.id,
+          name: String(x.name ?? ""),
+          unit,
+          stock,
+          minStock,
+          costPerUnit,
+          supplier,
+          provider: x.provider,
+          periodicity: x.periodicity,
+          frequency,
+          kind,
+        };
+      });
+      setItems(list);
+    });
+    return () => unsub();
+  }, []);
+
+  // helpers edición
+  const startEdit = (row: Item) => {
+    setEditingId(row.id);
+    setDraft({ ...row });
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft({});
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const nm = String(draft.name || "").trim();
+    if (!nm) return alert("Nombre requerido.");
+    const payload = {
+      name: nm,
+      unit: (draft.unit as Unit) || "g",
+      stock: Math.max(0, Number(draft.stock) || 0),
+      minStock: Math.max(0, Number(draft.minStock) || 0),
+      costPerUnit: Math.max(0, Number(draft.costPerUnit) || 0),
+      supplier: String(draft.supplier ?? draft.provider ?? ""),
+      provider: String(draft.supplier ?? draft.provider ?? ""),
+      frequency:
+        (draft.frequency as Frequency) ||
+        ((draft.periodicity as Frequency) || "daily"),
+      periodicity:
+        ((draft.frequency as Frequency) || "daily") === "daily"
+          ? "daily"
+          : ((draft.frequency as Frequency) || "daily") === "monthly"
+          ? "monthly"
+          : "weekly",
+      kind: (draft.kind as Kind) || "consumable",
+      updatedAt: serverTimestamp(),
+    };
+    await updateDoc(doc(db, "inventoryItems", editingId), payload);
+    setEditingId(null);
+    setDraft({});
+  };
+
+  const borrar = async (id: string) => {
+    if (!confirm("¿Eliminar ítem? Esta acción no se puede deshacer.")) return;
+    await deleteDoc(doc(db, "inventoryItems", id));
+  };
+
+  // crear nuevo
+  const crear = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nm = String(newItem.name || "").trim();
+    if (!nm) return;
+
+    const payload = {
+      orgId: getOrgId(),
+      name: nm,
+      unit: (newItem.unit as Unit) || "g",
+      stock: Math.max(0, Number(newItem.stock) || 0),
+      minStock: Math.max(0, Number(newItem.minStock) || 0),
+      costPerUnit: Math.max(0, Number(newItem.costPerUnit) || 0),
+      supplier: String(newItem.supplier ?? ""),
+      provider: String(newItem.supplier ?? ""), // compat con modelo
+      frequency: (newItem.frequency as Frequency) || "daily",
+      periodicity:
+        ((newItem.frequency as Frequency) || "daily") === "daily"
+          ? "daily"
+          : ((newItem.frequency as Frequency) || "daily") === "monthly"
+          ? "monthly"
+          : "weekly",
+      kind: (newItem.kind as Kind) || "consumable",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, "inventoryItems"), payload);
+    setShowNew(false);
+    setNewItem({
+      name: "",
+      unit: "g",
+      stock: 0,
+      minStock: 0,
+      costPerUnit: 0,
+      supplier: "",
+      kind: "consumable",
+      frequency: "daily",
+    });
+  };
+
+  // movimientos de stock (en transacción + movimientos válidos para reglas)
+  const openMove = (it: Item, type: "in" | "out") => {
+    setMoveItem(it);
+    setMoveType(type);
+    setMoveQty(0);
+    setMoveReason("");
+    setMoveOpen(true);
+  };
+
+  const confirmMove = async () => {
+    if (!moveOpen || !moveItem) return;
+    const qty = Math.abs(Number(moveQty) || 0);
+    if (qty <= 0) return;
+
+    const user = getAuth().currentUser;
+    const itemRef = doc(db, "inventoryItems", moveItem.id);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(itemRef);
+      if (!snap.exists()) throw new Error("Ítem no existe");
+      const cur = Number(snap.data()?.stock || 0);
+
+      const sign = moveType === "in" ? 1 : -1;
+      const next = cur + sign * qty;
+      if (next < 0) throw new Error("La salida dejaría el stock negativo.");
+
+      tx.update(itemRef, {
+        stock: next,
+        updatedAt: serverTimestamp(),
+      });
+
+      const allowed = new Set(["sale","cancel","delete"]);
+      const reason = allowed.has(moveReason) ? moveReason : null;
+
+      const mref = doc(collection(db, "stockMovements"));
+      tx.set(mref, {
+        id: mref.id,
+        orgId: getOrgId(),
+        at: serverTimestamp(),
+        type: moveType === "in" ? "revert" : "consume",
+        ingredientId: moveItem.id,
+        qty,
+        reason,                 // solo null | "sale" | "cancel" | "delete"
+        userId: user?.uid || null,
+
+        // extras para UI (no validados por reglas)
+        itemName: moveItem.name,
+        unit: moveItem.unit,
+      });
+    });
+
+    setMoveOpen(false);
+    setMoveItem(null);
+  };
+
+  // -------- derived --------
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return items
+      .filter((i) => (filterKind === "all" ? true : (i.kind || "consumable") === filterKind))
+      .filter((i) => (filterFreq === "all" ? true : (i.frequency || i.periodicity || "daily") === filterFreq))
+      .filter((i) => (t ? i.name.toLowerCase().includes(t) : true));
+  }, [items, q, filterKind, filterFreq]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const dir = sortDir === "asc" ? 1 : -1;
+    arr.sort((a, b) => {
+      let va: any, vb: any;
+      switch (sortBy) {
+        case "name":
+          va = a.name.toLowerCase(); vb = b.name.toLowerCase();
+          return va < vb ? -1 * dir : va > vb ? 1 * dir : 0;
+        case "stock":
+          return (a.stock - b.stock) * dir;
+        case "minStock":
+          return (a.minStock - b.minStock) * dir;
+        case "costPerUnit":
+          return (a.costPerUnit - b.costPerUnit) * dir;
+        default:
+          return 0;
+      }
+    });
+    return arr;
+  }, [filtered, sortBy, sortDir]);
+
+  const toggleSort = (k: SortKey) => {
+    if (sortBy === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortBy(k); setSortDir("asc"); }
+  };
+
+  // -------- UI atoms --------
+  const SegBtn = ({ active, children, onClick }: { active:boolean; children:any; onClick:()=>void }) => (
+    <button
+      className={`px-3 py-1.5 rounded-full border text-sm transition
+      ${active ? "bg-[var(--brand,#f97316)] text-white border-[var(--brand,#f97316)] shadow-sm"
+               : "bg-white hover:bg-slate-50"}`}
+      onClick={onClick}
+    >{children}</button>
+  );
+
+  const Th = ({ label, sortKey }: { label: string; sortKey?: SortKey }) => {
+    const active = sortKey && sortBy === sortKey;
+    return (
+      <th
+        className={`cursor-pointer select-none ${active ? "underline" : ""}`}
+        onClick={() => sortKey && toggleSort(sortKey)}
+        title={sortKey ? "Ordenar" : ""}
+      >
+        {label} {active ? (sortDir === "asc" ? "▲" : "▼") : ""}
+      </th>
+    );
+  };
+
+  const isLow = (it: Item) => Number(it.stock) <= Number(it.minStock || 0);
+
+  // -------- render --------
+  return (
+    <div className="container-app space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Bodega</h1>
+        <button className="btn btn-primary" onClick={() => setShowNew(true)}>Nuevo ítem</button>
+      </div>
+
+      {/* Toolbar */}
+      <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-3">
+          <input
+            className="input w-full"
+            placeholder="Buscar por nombre…"
+            value={q}
+            onChange={(e)=>setQ(e.target.value)}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SegBtn active={filterKind==="all"} onClick={()=>setFilterKind("all")}>Todo</SegBtn>
+            <SegBtn active={filterKind==="consumable"} onClick={()=>setFilterKind("consumable")}>Consumibles</SegBtn>
+            <SegBtn active={filterKind==="equipment"} onClick={()=>setFilterKind("equipment")}>Maquinaria</SegBtn>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SegBtn active={filterFreq==="all"} onClick={()=>setFilterFreq("all")}>Todas</SegBtn>
+            <SegBtn active={filterFreq==="daily"} onClick={()=>setFilterFreq("daily")}>Diario</SegBtn>
+            <SegBtn active={filterFreq==="weekly"} onClick={()=>setFilterFreq("weekly")}>Semanal</SegBtn>
+            <SegBtn active={filterFreq==="monthly"} onClick={()=>setFilterFreq("monthly")}>Mensual</SegBtn>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="rounded-2xl border bg-white overflow-auto">
+        <table className="table min-w-[1000px]">
+          <thead>
+            <tr>
+              <Th label="Nombre" sortKey="name" />
+              <th>Unidad</th>
+              <Th label="Stock" sortKey="stock" />
+              <Th label="Mín" sortKey="minStock" />
+              <Th label="Costo/u" sortKey="costPerUnit" />
+              <th>Frecuencia</th>
+              <th>Proveedor</th>
+              <th className="w-56">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-3 py-4 text-center text-slate-500">
+                  Sin ítems.
+                </td>
+              </tr>
+            )}
+
+            {sorted.map((it) => {
+              const editing = editingId === it.id;
+              const row = (editing ? (draft as Item) : it) as Item;
+
+              return (
+                <tr key={it.id} className={isLow(it) ? "bg-[#fffbeb]" : ""}>
+                  {/* Nombre */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <input
+                        className="input"
+                        value={row.name || ""}
+                        onChange={(e)=>setDraft({ ...row, name: e.target.value })}
+                      />
+                    ) : (
+                      <span className="font-medium">{row.name}</span>
+                    )}
+                  </td>
+
+                  {/* Unidad */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <select
+                        className="input"
+                        value={row.unit}
+                        onChange={(e)=>setDraft({ ...row, unit: e.target.value as Unit })}
+                      >
+                        <option value="g">g</option>
+                        <option value="ml">ml</option>
+                        <option value="u">u</option>
+                      </select>
+                    ) : (
+                      row.unit
+                    )}
+                  </td>
+
+                  {/* Stock */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <input
+                        className="input"
+                        type="number" min={0}
+                        value={String(row.stock ?? 0)}
+                        onChange={(e)=>setDraft({ ...row, stock: Number(e.target.value||0) })}
+                      />
+                    ) : (
+                      row.stock.toLocaleString()
+                    )}
+                  </td>
+
+                  {/* Min */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <input
+                        className="input"
+                        type="number" min={0}
+                        value={String(row.minStock ?? 0)}
+                        onChange={(e)=>setDraft({ ...row, minStock: Number(e.target.value||0) })}
+                      />
+                    ) : (
+                      (row.minStock ?? 0).toLocaleString()
+                    )}
+                  </td>
+
+                  {/* Costo/u */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <input
+                        className="input"
+                        type="number" min={0} step="0.01"
+                        value={String(row.costPerUnit ?? 0)}
+                        onChange={(e)=>setDraft({ ...row, costPerUnit: Number(e.target.value||0) })}
+                      />
+                    ) : (
+                      `$${Number(row.costPerUnit || 0).toLocaleString()}`
+                    )}
+                  </td>
+
+                  {/* Frecuencia */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <select
+                        className="input"
+                        value={row.frequency || "daily"}
+                        onChange={(e)=>setDraft({ ...row, frequency: e.target.value as Frequency })}
+                        disabled={(row.kind || "consumable") === "equipment"}
+                      >
+                        <option value="daily">Diario</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensual</option>
+                      </select>
+                    ) : (
+                      (row.kind || "consumable") === "equipment"
+                        ? <span className="text-slate-400">—</span>
+                        : FREQ_LABEL[(row.frequency || "daily") as Frequency]
+                    )}
+                  </td>
+
+                  {/* Proveedor */}
+                  <td className="px-3 py-2">
+                    {editing ? (
+                      <input
+                        className="input"
+                        value={row.supplier || ""}
+                        onChange={(e)=>setDraft({ ...row, supplier: e.target.value, provider: e.target.value })}
+                        placeholder="Nombre proveedor"
+                      />
+                    ) : (
+                      row.supplier || <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+
+                  {/* Acciones */}
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      {!editing ? (
+                        <>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>startEdit(it)}>Editar</button>
+                          <button className="btn btn-danger btn-sm" onClick={()=>borrar(it.id)}>Eliminar</button>
+                          <button className="btn btn-sm" onClick={()=>openMove(it, "in")}>Entrada</button>
+                          <button className="btn btn-sm" onClick={()=>openMove(it, "out")}>Salida</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn btn-sm" onClick={cancelEdit}>Cancelar</button>
+                          <button className="btn btn-primary btn-sm" onClick={saveEdit}>Guardar</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL Nuevo */}
+      {showNew && (
+        <div className="fixed inset-0 z-20 bg-black/40 flex items-end md:items-center justify-center p-3">
+          <form onSubmit={crear} className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-lg space-y-3">
+            <div className="text-lg font-semibold">Nuevo ítem</div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="md:col-span-2">
+                <div className="label">Nombre</div>
+                <input
+                  className="input w-full"
+                  value={newItem.name || ""}
+                  onChange={(e)=>setNewItem({...newItem, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <div className="label">Unidad</div>
+                <select
+                  className="input"
+                  value={newItem.unit as Unit}
+                  onChange={(e)=>setNewItem({...newItem, unit: e.target.value as Unit})}
+                >
+                  <option value="g">Gramos (g)</option>
+                  <option value="ml">Mililitros (ml)</option>
+                  <option value="u">Unidades (u)</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="label">Stock</div>
+                <input
+                  className="input" type="number" min={0}
+                  value={String(newItem.stock ?? 0)}
+                  onChange={(e)=>setNewItem({...newItem, stock: Number(e.target.value||0)})}
+                />
+              </div>
+              <div>
+                <div className="label">Mínimo</div>
+                <input
+                  className="input" type="number" min={0}
+                  value={String(newItem.minStock ?? 0)}
+                  onChange={(e)=>setNewItem({...newItem, minStock: Number(e.target.value||0)})}
+                />
+              </div>
+              <div>
+                <div className="label">Costo por unidad</div>
+                <input
+                  className="input" type="number" min={0} step="0.01"
+                  value={String(newItem.costPerUnit ?? 0)}
+                  onChange={(e)=>setNewItem({...newItem, costPerUnit: Number(e.target.value||0)})}
+                />
+              </div>
+
+              <div>
+                <div className="label">Frecuencia</div>
+                <select
+                  className="input"
+                  value={(newItem.frequency as Frequency) || "daily"}
+                  onChange={(e)=>setNewItem({...newItem, frequency: e.target.value as Frequency})}
+                  disabled={(newItem.kind as Kind) === "equipment"}
+                >
+                  <option value="daily">Diario</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="monthly">Mensual</option>
+                </select>
+              </div>
+              <div>
+                <div className="label">Proveedor</div>
+                <input
+                  className="input"
+                  value={newItem.supplier || ""}
+                  onChange={(e)=>setNewItem({...newItem, supplier: e.target.value})}
+                  placeholder="Ej: Distribuidor XYZ"
+                />
+              </div>
+              <div>
+                <div className="label">Tipo</div>
+                <select
+                  className="input"
+                  value={(newItem.kind as Kind) || "consumable"}
+                  onChange={(e)=>setNewItem({...newItem, kind: e.target.value as Kind})}
+                >
+                  <option value="consumable">Consumible</option>
+                  <option value="equipment">Maquinaria / Activo</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="btn" onClick={()=>setShowNew(false)}>Cancelar</button>
+              <button className="btn btn-primary">Crear</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL Movimiento de stock */}
+      {moveOpen && moveItem && (
+        <div className="fixed inset-0 z-20 bg-black/40 flex items-end md:items-center justify-center p-3">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-lg space-y-3">
+            <div className="text-lg font-semibold">
+              {moveType === "in" ? "Registrar ENTRADA" : "Registrar SALIDA"}
+            </div>
+            <div className="text-sm text-slate-600">
+              Ítem: <span className="font-medium">{moveItem.name}</span> · Stock actual:{" "}
+              <span className="font-medium">{moveItem.stock}</span> {moveItem.unit}
+            </div>
+            <div className="grid gap-3">
+              <div>
+                <div className="label">Cantidad ({moveItem.unit})</div>
+                <input
+                  className="input" type="number" min={0}
+                  value={String(moveQty)}
+                  onChange={(e)=>setMoveQty(Number(e.target.value||0))}
+                />
+              </div>
+              <div>
+                <div className="label">Motivo (opcional)</div>
+                <input
+                  className="input"
+                  placeholder='Usa: "sale", "cancel" o "delete" (otro texto se guardará como vacío)'
+                  value={moveReason}
+                  onChange={(e)=>setMoveReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button className="btn" onClick={()=>setMoveOpen(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={confirmMove}>
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,106 @@
+// src/pages/Compras.tsx
+import React, { useEffect, useState } from "react";
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+  increment,
+  query,
+  where,
+} from "firebase/firestore";
+import { db, getOrgId } from "@/services/firebase";
+
+type Inv = { id: string; name?: string; stock?: number; min?: number };
+
+export default function Compras() {
+  const orgId = getOrgId();
+  const [lowItems, setLowItems] = useState<Inv[]>([]);
+  const [restockAmounts, setRestockAmounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const qy = query(collection(db, "inventoryItems"), where("orgId", "==", orgId));
+    const unsub = onSnapshot(qy, (snapshot) => {
+      const lowList: Inv[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data() as any;
+        const stock = Number(data.stock) || 0;
+        // compat: soporta minStock o min
+        const min =
+          data.minStock != null
+            ? Number(data.minStock)
+            : data.min != null
+            ? Number(data.min)
+            : undefined;
+        if (min !== undefined && stock <= min) {
+          lowList.push({ id: d.id, name: data.name, stock, min });
+        }
+      });
+      setLowItems(lowList);
+    });
+    return () => unsub();
+  }, [orgId]);
+
+  const handleAmountChange = (id: string, value: string) =>
+    setRestockAmounts((prev) => ({ ...prev, [id]: Number(value) }));
+
+  const handleRestock = async (item: Inv) => {
+    const amount = restockAmounts[item.id] || 0;
+    if (amount <= 0) return alert("Ingresa una cantidad válida para reabastecer");
+
+    await updateDoc(doc(db, "inventoryItems", item.id), {
+      stock: increment(amount),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Log de movimiento (reabastecimiento manual)
+    await addDoc(collection(db, "stockMovements"), {
+      orgId,
+      dateKey: new Date().toISOString().slice(0, 10),
+      at: serverTimestamp(),
+      type: "revert",
+      ingredientId: item.id,
+      qty: amount,
+      reason: "restock",
+      orderId: null,
+    });
+
+    setRestockAmounts((prev) => ({ ...prev, [item.id]: 0 }));
+    alert(`Se reabastecieron ${amount} unidades de ${item.name || item.id}`);
+  };
+
+  return (
+    <div className="max-w-xl mx-auto p-4 space-y-3">
+      <h1 className="text-lg font-semibold">Reabastecer inventario</h1>
+      {lowItems.length === 0 ? (
+        <p className="text-slate-500">No hay insumos por debajo del mínimo.</p>
+      ) : (
+        <ul className="space-y-2">
+          {lowItems.map((it) => (
+            <li key={it.id} className="bg-white border rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <div className="font-medium">{it.name || it.id}</div>
+                <div className="text-sm text-slate-600">
+                  Stock: {it.stock} / Min: {it.min}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="w-24 border rounded-lg px-2 py-1"
+                  value={restockAmounts[it.id] || ""}
+                  onChange={(e) => handleAmountChange(it.id, e.target.value)}
+                />
+                <button className="px-3 py-1.5 rounded-lg bg-orange-600 text-white" onClick={() => handleRestock(it)}>
+                  Reabastecer
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
