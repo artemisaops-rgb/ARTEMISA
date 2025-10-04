@@ -1,5 +1,4 @@
-// src/contexts/Auth.tsx
-import {
+﻿import {
   createContext,
   useContext,
   useEffect,
@@ -43,13 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Persistencia solo de sesión (no re-entra al reabrir navegador)
     setPersistence(auth, browserSessionPersistence).catch(() => {});
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u ?? null);
       setLoading(false);
+      (window as any).__firebaseAuthUid = u?.uid ?? null; // <-- para useRole
 
-      // Alta automática: miembro + perfil de cliente (fidelización)
       if (u) {
         Promise.allSettled([
           ensureMemberOnLogin({ uid: u.uid, email: u.email }),
@@ -79,15 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await signInWithPopup(auth, provider);
         } catch {
-          // Fallback si el navegador bloquea popups
           await signInWithRedirect(auth, provider);
         }
       },
 
       async switchGoogleAccount(loginHint?: string) {
-        try {
-          await signOut(auth);
-        } catch {}
+        try { await signOut(auth); } catch {}
         const provider = new GoogleAuthProvider();
         const params: Record<string, string> = { prompt: "select_account" };
         if (loginHint) params.login_hint = loginHint;

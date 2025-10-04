@@ -1,5 +1,4 @@
-// src/hooks/useCustomerSearch.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   getDocs,
@@ -15,8 +14,7 @@ import {
 import { db as defaultDb } from "@/services/firebase";
 
 export type CustomerLite = {
-  id: string;            // uid
-  orgId: string;
+  id: string; orgId: string;
   displayName?: string | null;
   email?: string | null;
   photoURL?: string | null;
@@ -44,10 +42,6 @@ function useDebounced<T>(value: T, ms = 300) {
   return v;
 }
 
-/**
- * B'????T,??"?'??,?ss?,?squeda simple por clientes del orgId. Consulta por updatedAt (paginable)
- * y filtra por texto en el cliente (nombre/email/id) en el cliente.
- */
 export function useCustomerSearch(
   orgId: string,
   q: string,
@@ -101,7 +95,6 @@ export function useCustomerSearch(
 
         setResults((prev) => {
           const next = append ? prev.concat(mapped) : mapped;
-          // filtro por texto en cliente
           if (!debounced) return next;
           const t = debounced;
           return next.filter(

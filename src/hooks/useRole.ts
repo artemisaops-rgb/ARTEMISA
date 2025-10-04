@@ -1,21 +1,39 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db, getOrgId } from "@/services/firebase";
-import { useAuth } from "@/contexts/Auth";
+import type { DBRole } from "@/lib/roles";
 
-export function useRole() {
-  const { user } = useAuth();
-  const [role, setRole] = useState<"owner"|"worker"|"client"|null>(null);
+type UseRoleOut = { role: DBRole | null; loading: boolean };
+
+export function useRole(): UseRoleOut {
+  const [role, setRole] = useState<DBRole | null>(null);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    if (!user) { setRole(null); setLoading(false); return; }
-    const ref = doc(db, "orgs", getOrgId(), "members", user.uid);
-    const unsub = onSnapshot(ref, s => {
-      const r = (s.exists() ? (s.data() as any).role : null) as any;
-      setRole(r ?? "client");
+    const uid = (window as any)?.__firebaseAuthUid || null;
+    setLoading(true);
+    const orgId = getOrgId();
+    if (!orgId || !uid) {
+      setRole(null);
       setLoading(false);
-    });
+      return;
+    }
+    const ref = doc(db, "orgs", orgId, "members", uid);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const r = (snap.exists() ? (snap.data() as any)?.role : null) as DBRole | null;
+        setRole(r ?? null);
+        setLoading(false);
+      },
+      () => {
+        setRole(null);
+        setLoading(false);
+      }
+    );
     return () => unsub();
-  }, [user?.uid]);
+  }, []);
+
   return { role, loading };
 }
+export default useRole;

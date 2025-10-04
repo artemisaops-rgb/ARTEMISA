@@ -1,17 +1,15 @@
-rules_version = '2';
+﻿rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
 
     function isLoggedIn() { return request.auth != null; }
 
-    // Lee orgId del doc actual o del que se intenta escribir
     function orgOf() {
       return (resource.data.orgId != null)
         ? resource.data.orgId
         : request.resource.data.orgId;
     }
 
-    // Pertenencia y roles
     function isMember(orgId) {
       return isLoggedIn() &&
         exists(/databases/$(db)/documents/orgs/$(orgId)/members/$(request.auth.uid));
@@ -25,18 +23,15 @@ service cloud.firestore {
     }
     function isOwner(orgId) { return role(orgId) == "owner"; }
 
-    // Org del customer (para validar loyalty events)
     function customerOrg(uid) {
       return get(/databases/$(db)/documents/customers/$(uid)).data.orgId;
     }
 
-    // ---- orgs/{orgId}/members/{uid}
     match /orgs/{orgId}/members/{uid} {
       allow read:   if isLoggedIn() && (request.auth.uid == uid || isOwner(orgId));
       allow write:  if isLoggedIn() && (request.auth.uid == uid || isOwner(orgId));
     }
 
-    // ---- customers/{uid} (+ loyaltyEvents)
     match /customers/{uid} {
       allow read:   if (isLoggedIn() && request.auth.uid == uid) || isMember(orgOf());
       allow create: if isLoggedIn() && request.auth.uid == uid;
@@ -44,18 +39,16 @@ service cloud.firestore {
       allow delete: if isOwner(orgOf());
 
       match /loyaltyEvents/{eventId} {
-        allow read:   if isMember(orgOf());
+        allow read:   if (isLoggedIn() && request.auth.uid == uid) || isMember(orgOf());
         allow create: if isStaff(orgOf()) && request.resource.data.orgId == customerOrg(uid);
         allow update, delete: if false;
       }
     }
 
-    // ---- schedules/{uid}/days/{date}/slots/{slotId}  (sin orgId; dueño del uid)
     match /schedules/{uid}/{document=**} {
       allow read, write: if isLoggedIn() && request.auth.uid == uid;
     }
 
-    // ---- Colecciones por orgId (orders, products, etc.)
     match /{colName}/{docId} {
       allow read:  if (colName in [
                       "orders","products","inventoryItems","stockMovements",
