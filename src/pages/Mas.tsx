@@ -15,7 +15,7 @@ function NavTile({ to, title, desc }: { to: string; title: string; desc?: string
 
 export default function Mas() {
   const { user, logout, switchGoogleAccount } = useAuth();
-  const { role } = useRole();
+  const { role } = useRole(user?.uid); // <- aquí
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => setEmail(user?.email ?? null), [user]);

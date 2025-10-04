@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+﻿import React, { useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/Auth";
 
 const Item = ({ to, label, icon }:{ to:string; label:string; icon:React.ReactNode; }) => (
   <NavLink
@@ -17,7 +18,8 @@ const Item = ({ to, label, icon }:{ to:string; label:string; icon:React.ReactNod
 
 export default function NavBar() {
   const ref = useRef<HTMLElement | null>(null);
-  const { role } = useRole(); // "owner" | "worker" | "client" | null
+  const { user } = useAuth();
+  const { role } = useRole(user?.uid); // <- ahora depende del uid
 
   useEffect(() => {
     const el = ref.current;

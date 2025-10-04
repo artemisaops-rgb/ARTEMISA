@@ -5,19 +5,19 @@ import type { DBRole } from "@/lib/roles";
 
 type UseRoleOut = { role: DBRole | null; loading: boolean };
 
-export function useRole(): UseRoleOut {
+/** Obtiene el rol escuchando /orgs/{orgId}/members/{uid}. Reintenta cuando cambie uid. */
+export function useRole(uid?: string): UseRoleOut {
   const [role, setRole] = useState<DBRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const uid = (window as any)?.__firebaseAuthUid || null;
-    setLoading(true);
     const orgId = getOrgId();
     if (!orgId || !uid) {
       setRole(null);
-      setLoading(false);
+      setLoading(!uid); // si no hay uid, quedamos "cargando"
       return;
     }
+    setLoading(true);
     const ref = doc(db, "orgs", orgId, "members", uid);
     const unsub = onSnapshot(
       ref,
@@ -32,7 +32,7 @@ export function useRole(): UseRoleOut {
       }
     );
     return () => unsub();
-  }, []);
+  }, [uid]);
 
   return { role, loading };
 }
