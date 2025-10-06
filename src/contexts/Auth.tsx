@@ -46,11 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u ?? null);
       setLoading(false);
-      (window as any).__firebaseAuthUid = u?.uid ?? null; // <-- para useRole
+      (window as any).__firebaseAuthUid = u?.uid ?? null; // para hooks que lo leen
 
       if (u) {
+        // ⬇️ Aquí sincronizamos membresía (con displayName) y perfil de cliente
         Promise.allSettled([
-          ensureMemberOnLogin({ uid: u.uid, email: u.email }),
+          ensureMemberOnLogin({
+            uid: u.uid,
+            email: u.email,
+            displayName: u.displayName,
+          }),
           ensureCustomerDoc(db, u.uid, {
             email: u.email ?? null,
             displayName: u.displayName ?? null,
