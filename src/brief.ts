@@ -1,4 +1,4 @@
-// Placeholder: genera un brief simple basado en agregados de ventas.
+﻿// Placeholder: genera un brief simple basado en agregados de ventas.
 // Integraremos Gemini cuando tengamos credenciales (no se ejecuta solo).
 import * as admin from "firebase-admin";
 if (!admin.apps.length) admin.initializeApp();

@@ -1,6 +1,7 @@
+﻿// src/components/RecipePicker.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
-import { getFirestore } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db, getOrgId } from "@/services/firebase";
 
 type Item = { id: string; name?: string };
 type Recipe = Record<string, number>;
@@ -14,7 +15,6 @@ export default function RecipePicker({
   value: Recipe;
   onChange: (r: Recipe) => void;
 }) {
-  const db = getFirestore();
   const [open, setOpen] = useState(false);
   const [inv, setInv] = useState<Item[]>([]);
   const [q, setQ] = useState("");
@@ -22,17 +22,26 @@ export default function RecipePicker({
 
   useEffect(() => {
     (async () => {
-      const snap = await getDocs(collection(db, "inventory"));
-      const list: Item[] = [];
-      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
-      setInv(list);
+      try {
+        const orgId = getOrgId();
+        const snap = await getDocs(
+          query(collection(db, "inventoryItems"), where("orgId", "==", orgId))
+        );
+        const list: Item[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as any) }));
+        setInv(list);
+      } catch {
+        setInv([]);
+      }
     })();
   }, []);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return [];
-    return inv.filter((i) => (i.name || i.id).toLowerCase().includes(t)).slice(0, 10);
+    return inv
+      .filter((i) => (i.name || i.id).toLowerCase().includes(t))
+      .slice(0, 10);
   }, [inv, q]);
 
   const add = (id: string) => {
@@ -81,7 +90,8 @@ export default function RecipePicker({
                       className="px-3 py-2 hover:bg-slate-50 cursor-pointer"
                       onClick={() => setQ(i.name || i.id)}
                     >
-                      {i.name || i.id} <span className="text-xs text-slate-400">({i.id})</span>
+                      {i.name || i.id}{" "}
+                      <span className="text-xs text-slate-400">({i.id})</span>
                     </div>
                   ))}
                 </div>
@@ -98,12 +108,13 @@ export default function RecipePicker({
               type="button"
               className="px-4 py-2 rounded-lg bg-[var(--brand,#f97316)] text-white"
               onClick={() => {
-                // si escribi el nombre, buscar id
-                const match = inv.find((i) => (i.name || i.id).toLowerCase() === q.trim().toLowerCase());
+                const match = inv.find(
+                  (i) => (i.name || i.id).toLowerCase() === q.trim().toLowerCase()
+                );
                 add(match ? match.id : q.trim());
               }}
             >
-              Aadir
+              Añadir
             </button>
           </div>
 
@@ -121,19 +132,23 @@ export default function RecipePicker({
                 {entries.length === 0 && (
                   <tr>
                     <td className="py-2 text-slate-500" colSpan={3}>
-                      Sin insumos todava.
+                      Sin insumos todavía.
                     </td>
                   </tr>
                 )}
                 {entries.map(([id, g]) => (
                   <tr key={id} className="border-t">
-                    <td className="py-2">{inv.find((i) => i.id === id)?.name || id}</td>
+                    <td className="py-2">
+                      {inv.find((i) => i.id === id)?.name || id}
+                    </td>
                     <td className="py-2">
                       <input
                         type="number"
                         className="w-28 border rounded-lg px-2 py-1"
                         value={g}
-                        onChange={(e) => onChange({ ...value, [id]: Number(e.target.value) })}
+                        onChange={(e) =>
+                          onChange({ ...value, [id]: Number(e.target.value) })
+                        }
                       />
                     </td>
                     <td className="py-2">
@@ -151,5 +166,3 @@ export default function RecipePicker({
     </div>
   );
 }
-
-

@@ -1,3 +1,4 @@
+﻿// src/routes/Protected.tsx
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/Auth";
 
@@ -6,7 +7,11 @@ export default function Protected() {
   const loc = useLocation();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">Cargando???</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
+        Cargando…
+      </div>
+    );
   }
 
   if (!user) {

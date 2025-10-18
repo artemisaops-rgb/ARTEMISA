@@ -1,25 +1,38 @@
-// Registro del Service Worker para Artemisa
-if ("serviceWorker" in navigator) {
+﻿// src/sw-register.ts
+/**
+ * Registro del Service Worker (SPA / Vite compatible)
+ * - Activa la nueva versión inmediatamente (SKIP_WAITING)
+ * - Recarga una sola vez cuando el nuevo SW toma control
+ */
+const SUPPORTS_SW = "serviceWorker" in navigator;
+
+if (SUPPORTS_SW) {
+  const swUrl = (() => {
+    // Respeta BASE_URL si la app vive en subcarpetas (Vite)
+    const base = (import.meta as any)?.env?.BASE_URL || "/";
+    return `${String(base).replace(/\/$/, "")}/sw.js`;
+  })();
+
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js")
+      .register(swUrl)
       .then((reg) => {
-        // Si hay un SW en espera, p'????T,??"?'??,?ss?,?dele que active ya
+        // Si ya hay un SW "waiting", pídelo que active ya
         if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
 
-        // Cuando haya una actualizaci'????T,??"?'??,?ss?,?n descarg'????T,??"?'??,?ss?,?ndose
+        // Cuando haya una actualización descargándose
         reg.addEventListener("updatefound", () => {
           const newWorker = reg.installing;
           if (!newWorker) return;
           newWorker.addEventListener("statechange", () => {
+            // Si se instaló y ya hay un controlador, es una actualización
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              // hay nueva versi'????T,??"?'??,?ss?,?n lista; al tomar control recargaremos
               reg.waiting?.postMessage({ type: "SKIP_WAITING" });
             }
           });
         });
       })
-      .catch((err) => console.error("SW register failed", err));
+      .catch((err) => console.error("Service Worker registration failed:", err));
 
     // Al cambiar el controlador (nuevo SW activo), recarga 1 vez
     let refreshing = false;

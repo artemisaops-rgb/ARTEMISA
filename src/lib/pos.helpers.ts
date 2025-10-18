@@ -1,4 +1,4 @@
-// src/lib/pos.helpers.ts
+﻿// src/lib/pos.helpers.ts
 import type { Firestore } from "firebase/firestore";
 import {
   collection,
@@ -7,9 +7,22 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { gaLog, getOrgId } from "@/services/firebase";
+import { gaLog, getOrgId, toDateKey } from "@/services/firebase";
 import { awardStampsOnDeliveredOrder } from "@/lib/customers";
 
+/** ===== Config colecciones (multi-tenant toggle) =====
+ *  Si usas subcolecciones por organización, pon USE_ORG_SUBCOLS=true.
+ *  Así quedará en orgs/{orgId}/{colName}
+ */
+const USE_ORG_SUBCOLS = false;
+const col = (db: Firestore, orgId: string, name: string) =>
+  USE_ORG_SUBCOLS ? collection(db as any, "orgs", orgId, name) : collection(db as any, name);
+const docIn = (db: Firestore, orgId: string, name: string, id?: string) =>
+  id
+    ? (USE_ORG_SUBCOLS ? doc(db as any, "orgs", orgId, name, id) : doc(db as any, name, id))
+    : doc(col(db, orgId, name));
+
+/** ===== Tipos ===== */
 export type PayMethod = "cash" | "qr" | "card" | "other";
 
 export type CartItem = {
@@ -19,17 +32,25 @@ export type CartItem = {
   sizeName?: string;
   price: number;
   qty: number;
-  recipe?: Record<string, number>;
+  recipe?: Record<string, number>; // ingredienteId -> cantidad (unidad base)
   isBeverage?: boolean;
   category?: string;
 };
 
-type InventoryRow = { id: string; have: number; req: number; name: string; unit?: string; cpu: number };
+type InventoryRow = {
+  id: string;
+  have: number;
+  req: number;
+  name: string;
+  unit?: string;
+  cpu: number; // costo por unidad
+};
 
-const ORG_ID = getOrgId();
-const ymd = (d = new Date()) => d.toISOString().slice(0, 10);
+/** ===== Config impuestos / redondeo ===== */
+const IVA_RATE = 0; // 0.19 si manejas IVA incluido
+const ROUND_TO = 50; // múltiplo $50 (0 = sin redondeo)
 
-// ---------- utils ----------
+/** ---------- Utils ---------- */
 function aggregateNeed(items: CartItem[]): Record<string, number> {
   const need: Record<string, number> = {};
   for (const it of items) {
@@ -57,15 +78,45 @@ function computeNeedFromItemsList(items: any[] | undefined): Record<string, numb
 }
 
 function toAnalyticsItems(items: CartItem[]) {
-  return items.map((i) => ({
-    item_id: i.id,
-    item_name: i.name,
-    price: Number(i.price) || 0,
-    quantity: Number(i.qty) || 0,
-  }));
+  return items
+    .filter((i) => (Number(i.price) || 0) >= 0)
+    .map((i) => ({
+      item_id: i.id,
+      item_name: i.name,
+      price: Number(i.price) || 0,
+      quantity: Number(i.qty) || 0,
+    }));
 }
 
-// ---------- limpiar objetos (preservando Timestamp y sentinels) ----------
+/** ===== Totales con descuento/IVA/redondeo ===== */
+const roundTo = (n: number, step: number) => (step > 0 ? Math.round(n / step) * step : n);
+
+export function calcTotals(items: CartItem[], opts?: { ivaRate?: number; roundTo?: number }) {
+  const ivaRate = opts?.ivaRate ?? IVA_RATE;
+  const step = opts?.roundTo ?? ROUND_TO;
+
+  const positives = items.filter((i) => (Number(i.price) || 0) >= 0);
+  const negatives = items.filter((i) => (Number(i.price) || 0) < 0);
+
+  const subtotal = positives.reduce(
+    (s, it) => s + Number(it.price || 0) * Number(it.qty || 0),
+    0
+  );
+  const discount = Math.abs(
+    negatives.reduce((s, it) => s + Number(it.price || 0) * Number(it.qty || 0), 0)
+  );
+
+  // precios con IVA incluido
+  const net = Math.max(0, subtotal - discount);
+  const tax = ivaRate > 0 ? net - net / (1 + ivaRate) : 0;
+  const total = net;
+  const totalRounded = roundTo(total, step);
+  const roundDelta = totalRounded - total;
+
+  return { subtotal, discount, tax, roundDelta, total, totalRounded };
+}
+
+/** ---------- limpiar objetos (preservando Timestamp y sentinels) ---------- */
 function isPlainObject(v: any) {
   if (v === null || typeof v !== "object") return false;
   const proto = Object.getPrototypeOf(v);
@@ -86,8 +137,9 @@ function cleanDeep<T = any>(v: T): T {
   }
 
   if (t === "object") {
-    if (v instanceof Timestamp) return v as any; // preservar Timestamp
-    if (!isPlainObject(v)) return v as any; // preservar sentinels (p.ej., serverTimestamp())
+    if (v instanceof Timestamp) return v as any;
+    // serverTimestamp() y otros FieldValue no son plain objects: se devuelven tal cual
+    if (!isPlainObject(v)) return v as any;
     const out: any = {};
     for (const [k, val] of Object.entries(v as any)) {
       const c = cleanDeep(val);
@@ -98,9 +150,9 @@ function cleanDeep<T = any>(v: T): T {
   return v as any;
 }
 
-// -------------------------
-// Confirmar venta (descuenta stock, crea orden pending)
-// -------------------------
+/** -------------------------
+ * Confirmar venta (descuenta stock, crea orden pending)
+ * ------------------------- */
 export async function checkoutStrict(
   db: Firestore,
   items: CartItem[],
@@ -110,15 +162,16 @@ export async function checkoutStrict(
 ): Promise<string> {
   if (!items.length) throw new Error("El carrito está vacío");
 
+  const ORG_ID = getOrgId();
   const need = aggregateNeed(items);
   const invIds = Object.keys(need);
-  const orderRef = doc(collection(db, "orders")); // id ya disponible para vincular en stockMovements
+  const orderRef = docIn(db, ORG_ID, "orders");
 
   await runTransaction(db, async (tx) => {
-    // ----- LECTURAS inventario -----
+    /** ----- LECTURAS inventario ----- */
     const rows: InventoryRow[] = [];
     for (const id of invIds) {
-      const ref = doc(db, "inventoryItems", id);
+      const ref = docIn(db, ORG_ID, "inventoryItems", id);
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error(`Ingrediente no existe: ${id}`);
 
@@ -129,26 +182,27 @@ export async function checkoutStrict(
       const unit = String(data?.unit || "");
       const cpu = Number(data?.costPerUnit || 0);
 
-      if (have < req) throw new Error(`Stock insuficiente de ${name}. Falta ${req - have} ${unit || ""}.`);
+      if (have < req)
+        throw new Error(`Stock insuficiente de ${name}. Falta ${req - have} ${unit || ""}.`);
       rows.push({ id, have, req, name, unit, cpu });
     }
 
     const totalCogs = rows.reduce<number>((acc, r) => acc + r.req * r.cpu, 0);
 
-    // ----- ESCRITURAS inventario + kardex -----
+    /** ----- ESCRITURAS inventario + kardex ----- */
     for (const { id, have, req } of rows) {
-      const ref = doc(db, "inventoryItems", id);
+      const ref = docIn(db, ORG_ID, "inventoryItems", id);
       tx.update(ref, { stock: have - req, updatedAt: serverTimestamp() });
 
-      const movRef = doc(collection(db, "stockMovements"));
+      const movRef = docIn(db, ORG_ID, "stockMovements");
       tx.set(
         movRef,
         cleanDeep({
           id: movRef.id,
           orgId: ORG_ID,
-          dateKey: ymd(),
+          dateKey: toDateKey(),
           at: serverTimestamp(),
-          type: "consume",
+          type: "out", // consumo por venta
           ingredientId: id,
           qty: req,
           reason: "sale",
@@ -157,7 +211,7 @@ export async function checkoutStrict(
       );
     }
 
-    // ----- Orden -----
+    /** ----- Orden ----- */
     const safeItems = items.map((i) => {
       const price = Number.isFinite(Number(i.price)) ? Number(i.price) : 0;
       const qty = Number(i.qty) || 0;
@@ -177,18 +231,22 @@ export async function checkoutStrict(
     });
 
     const createdAt = serverTimestamp();
-    const total = safeItems.reduce<number>((s, it) => s + (Number(it.total) || 0), 0);
+    const totals = calcTotals(safeItems);
 
     tx.set(
       orderRef,
       cleanDeep({
         id: orderRef.id,
         orgId: ORG_ID,
-        dateKey: ymd(),
+        dateKey: toDateKey(),
         at: createdAt,
         createdAt,
         items: safeItems,
-        total,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        tax: totals.tax,
+        roundDelta: totals.roundDelta,
+        total: totals.totalRounded,
         cogs: Number(totalCogs || 0),
         payMethod: payMethod || "cash",
         status: "pending",
@@ -199,22 +257,26 @@ export async function checkoutStrict(
     );
   });
 
-  // Analytics (no bloquea)
+  // Analytics (no bloquea la UX)
   try {
-    const total = items.reduce((s, it) => s + Number(it.price || 0) * Number(it.qty || 0), 0);
-    await gaLog("begin_checkout", { value: total, currency: "COP", items: toAnalyticsItems(items) });
+    const totals = calcTotals(items);
+    await gaLog("begin_checkout", {
+      value: totals.totalRounded,
+      currency: "COP",
+      items: toAnalyticsItems(items),
+    });
   } catch {}
 
   return orderRef.id;
 }
 
-// -------------------------
-// Entregar (marca delivered + acredita sellos)
-// -------------------------
+/** -------------------------
+ * Entregar (marca delivered + acredita sellos)
+ * ------------------------- */
 export async function deliverOrder(db: Firestore, orderId: string) {
-  const ref = doc(db, "orders", orderId);
+  const ORG_ID = getOrgId();
+  const ref = docIn(db, ORG_ID, "orders", orderId);
 
-  // Marcamos delivered de forma transaccional e idempotente
   const result = await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Orden no existe");
@@ -232,7 +294,7 @@ export async function deliverOrder(db: Firestore, orderId: string) {
     };
   });
 
-  // Analytics
+  // Analytics purchase
   try {
     await gaLog("purchase", {
       transaction_id: orderId,
@@ -244,12 +306,12 @@ export async function deliverOrder(db: Firestore, orderId: string) {
           name: String(i.name || ""),
           price: Number(i.price || 0),
           qty: Number(i.qty || 0),
-        }))
+        })) as any
       ),
     });
   } catch {}
 
-  // Ledger (no bloquea si falla). Usa customers.awardStampsOnDeliveredOrder
+  // Fidelización (sellos/puntos)
   try {
     await awardStampsOnDeliveredOrder(db, orderId);
   } catch {}
@@ -261,11 +323,12 @@ export async function markDelivered(db: Firestore, orderId: string) {
   return deliverOrder(db, orderId);
 }
 
-// -------------------------
-// Anular (revierte stock y marca canceled)
-// -------------------------
+/** -------------------------
+ * Anular (revierte stock y marca canceled)
+ * ------------------------- */
 export async function cancelOrder(db: Firestore, orderId: string) {
-  const orderRef = doc(db, "orders", orderId);
+  const ORG_ID = getOrgId();
+  const orderRef = docIn(db, ORG_ID, "orders", orderId);
 
   const result = await runTransaction(db, async (tx) => {
     const orderSnap = await tx.get(orderRef);
@@ -289,7 +352,7 @@ export async function cancelOrder(db: Firestore, orderId: string) {
     // leer inventario de TODOS primero
     const invSnaps: Record<string, { have: number } | null> = {};
     for (const id of invIds) {
-      const invRef = doc(db, "inventoryItems", id);
+      const invRef = docIn(db, ORG_ID, "inventoryItems", id);
       const snap = await tx.get(invRef);
       invSnaps[id] = snap.exists() ? { have: Number(snap.data()?.stock || 0) } : null;
     }
@@ -297,22 +360,22 @@ export async function cancelOrder(db: Firestore, orderId: string) {
     // ESCRITURAS: devolver stock + kardex revert
     for (const id of invIds) {
       const giveBack = Number(need[id] || 0);
-      const invRef = doc(db, "inventoryItems", id);
+      const invRef = docIn(db, ORG_ID, "inventoryItems", id);
       const have = invSnaps[id]?.have ?? 0;
 
       if (invSnaps[id]) {
         tx.update(invRef, { stock: have + giveBack, updatedAt: serverTimestamp() });
       }
 
-      const movRef = doc(collection(db, "stockMovements"));
+      const movRef = docIn(db, ORG_ID, "stockMovements");
       tx.set(
         movRef,
         cleanDeep({
           id: movRef.id,
           orgId: ORG_ID,
-          dateKey: ymd(),
+          dateKey: toDateKey(),
           at: serverTimestamp(),
-          type: "revert",
+          type: "in", // entrada por cancelación
           ingredientId: id,
           qty: giveBack,
           reason: "cancel",
@@ -337,17 +400,18 @@ export async function cancelOrder(db: Firestore, orderId: string) {
           name: String(i.name || ""),
           price: Number(i.price || 0),
           qty: Number(i.qty || 0),
-        }))
+        })) as any
       ),
     });
   } catch {}
 }
 
-// -------------------------
-// Eliminar (si no estaba cancelada, también revierte stock)
-// -------------------------
+/** -------------------------
+ * Eliminar (si no estaba cancelada, también revierte stock)
+ * ------------------------- */
 export async function deleteOrder(db: Firestore, orderId: string) {
-  const orderRef = doc(db, "orders", orderId);
+  const ORG_ID = getOrgId();
+  const orderRef = docIn(db, ORG_ID, "orders", orderId);
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(orderRef);
@@ -369,30 +433,30 @@ export async function deleteOrder(db: Firestore, orderId: string) {
 
       invSnaps = {};
       for (const id of invIds) {
-        const invRef = doc(db, "inventoryItems", id);
+        const invRef = docIn(db, ORG_ID, "inventoryItems", id);
         const invSnap = await tx.get(invRef);
         invSnaps[id] = invSnap.exists() ? { have: Number(invSnap.data()?.stock || 0) } : null;
       }
 
-      // devolver stock + kardex revert (delete)
+      // devolver stock + kardex (delete)
       for (const id of invIds) {
         const give = Number(need[id] || 0);
-        const invRef = doc(db, "inventoryItems", id);
+        const invRef = docIn(db, ORG_ID, "inventoryItems", id);
         const have = invSnaps[id]?.have ?? 0;
 
         if (invSnaps[id]) {
           tx.update(invRef, { stock: have + give, updatedAt: serverTimestamp() });
         }
 
-        const movRef = doc(collection(db, "stockMovements"));
+        const movRef = docIn(db, ORG_ID, "stockMovements");
         tx.set(
           movRef,
           cleanDeep({
             id: movRef.id,
             orgId: ORG_ID,
-            dateKey: ymd(),
+            dateKey: toDateKey(),
             at: serverTimestamp(),
-            type: "revert",
+            type: "in", // entrada por borrado
             ingredientId: id,
             qty: give,
             reason: "delete",

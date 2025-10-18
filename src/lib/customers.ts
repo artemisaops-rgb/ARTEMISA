@@ -1,109 +1,202 @@
-﻿import {
-  addDoc, collection, doc, getDoc, runTransaction, serverTimestamp, updateDoc, Firestore,
+﻿// src/lib/customers.ts
+import {
+  Firestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  runTransaction,
+  collection,
+  serverTimestamp,
 } from "firebase/firestore";
-import { getOrgId, db as appDb } from "@/services/firebase";
+import { getOrgId } from "@/services/firebase";
 
-export const BEVERAGE_CATEGORIES = ["frappes", "coldbrew", "bebidas calientes"] as const;
-type Cat = (typeof BEVERAGE_CATEGORIES)[number];
+/** ===== Toggle multi-tenant (igual que en pos.helpers) ===== */
+const USE_ORG_SUBCOLS = false;
+const col = (db: Firestore, orgId: string, name: string) =>
+  USE_ORG_SUBCOLS ? collection(db as any, "orgs", orgId, name) : collection(db as any, name);
+const docIn = (db: Firestore, orgId: string, name: string, id?: string) =>
+  id
+    ? (USE_ORG_SUBCOLS ? doc(db as any, "orgs", orgId, name, id) : doc(db as any, name, id))
+    : doc(col(db, orgId, name));
 
-export type OrderItem = {
-  id: string; name: string; qty: number;
-  price?: number; category?: string; isBeverage?: boolean; sizeId?: string; sizeName?: string;
+/** Perfil básico persistido en /customers/{uid} */
+export type CustomerProfile = {
+  email?: string | null;
+  displayName?: string | null;
+  photoURL?: string | null;
+  phoneNumber?: string | null;
 };
 
-type OrderDoc = {
-  id: string; orgId: string; customerUid?: string | null; items?: OrderItem[]; deliveredAt?: any; staffId?: string;
+export type CustomerDoc = CustomerProfile & {
+  uid: string;
+  totalStamps: number;
+  freeCredits: number;
+  stampsProgress: number;
+  isDeleted: boolean;
+  orgId?: string | null;
+  createdAt: any;
+  updatedAt: any;
 };
 
-export async function ensureCustomerDoc(db: Firestore, uid: string, patch?: Partial<Record<string, any>>) {
-  const ref = doc(db, "customers", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    const now = serverTimestamp();
-    await updateDoc(ref, {} as any).catch(async () => {
-      await runTransaction(db, async (tx) => {
-        tx.set(ref, {
-          orgId: getOrgId(),
-          stampsProgress: 0, totalStamps: 0, freeCredits: 0,
-          createdAt: now, updatedAt: now, ...(patch || {}),
-        });
-      });
-    });
-  } else if (patch && Object.keys(patch).length) {
-    await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() } as any);
-  }
-}
-
-export type EnsureCustomerProfileArgs = {
-  uid: string; email?: string | null; displayName?: string | null; photoURL?: string | null;
-};
-export async function ensureCustomerProfile(args: EnsureCustomerProfileArgs) {
-  const { uid, email, displayName, photoURL } = args;
-  return ensureCustomerDoc(appDb, uid, {
-    email: email ?? null, displayName: displayName ?? null, photoURL: photoURL ?? null,
-  });
-}
-
-function countBeverages(items: OrderItem[] | undefined): number {
-  if (!items || !items.length) return 0;
-  return items.reduce((sum, it) => {
-    const isB =
-      Boolean(it.isBeverage) ||
-      (it.category ? (BEVERAGE_CATEGORIES as readonly string[]).includes(it.category.toLowerCase()) : false);
-    return sum + (isB ? Number(it.qty || 0) : 0);
-  }, 0);
-}
-
+/** Deriva contadores de fidelización a partir de totalStamps. */
 function derive(totalStamps: number) {
-  const ts = Math.max(0, Math.floor(totalStamps));
+  const ts = Math.max(0, Math.floor(Number(totalStamps || 0)));
   const freeCredits = Math.floor(ts / 10);
   const stampsProgress = ts % 10;
   return { totalStamps: ts, freeCredits, stampsProgress };
 }
 
+/** Crea/actualiza el doc de cliente */
+export async function ensureCustomerDoc(
+  db: Firestore,
+  uid: string,
+  profile?: CustomerProfile
+): Promise<void> {
+  const orgId = getOrgId();
+  const ref = docIn(db, orgId, "customers", uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    const base: CustomerDoc = {
+      uid,
+      email: profile?.email ?? null,
+      displayName: profile?.displayName ?? null,
+      photoURL: profile?.photoURL ?? null,
+      phoneNumber: profile?.phoneNumber ?? null,
+      ...derive(0),
+      isDeleted: false,
+      orgId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(ref, base);
+    return;
+  }
+
+  const patch: Partial<CustomerDoc> = { updatedAt: serverTimestamp() };
+  if (profile) {
+    if (profile.email !== undefined) patch.email = profile.email;
+    if (profile.displayName !== undefined) patch.displayName = profile.displayName;
+    if (profile.photoURL !== undefined) patch.photoURL = profile.photoURL;
+    if (profile.phoneNumber !== undefined) patch.phoneNumber = profile.phoneNumber;
+  }
+  await updateDoc(ref, patch as any);
+}
+
+export async function ensureCustomerProfile(
+  db: Firestore,
+  uid: string,
+  profile: CustomerProfile
+) {
+  return ensureCustomerDoc(db, uid, profile);
+}
+
+/** Canjea 1 crédito (= 10 sellos). */
 export async function redeemOneFreeBeverage(db: Firestore, customerUid: string) {
   const orgId = getOrgId();
-  const custRef = doc(db, "customers", customerUid);
-  const eventsCol = collection(db, "customers", customerUid, "loyaltyEvents");
+  const custRef = docIn(db, orgId, "customers", customerUid);
+  const eventsRoot = col(db, orgId, "customers");
+  const evRef = (uid: string) => doc(collection(eventsRoot, uid, "loyaltyEvents"));
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(custRef);
     if (!snap.exists()) throw new Error("El cliente no existe.");
     const cur = snap.data() || {};
-    const totalStamps = Number(cur.totalStamps || 0);
-    if (totalStamps < 10) throw new Error("Sin créditos disponibles.");
-    const next = derive(totalStamps - 10);
+    const total = Number(cur.totalStamps || 0);
+    if (total < 10) throw new Error("Sin créditos disponibles.");
+    const next = derive(total - 10);
+
     tx.update(custRef, { ...next, updatedAt: serverTimestamp() });
-    tx.set(doc(eventsCol), { orgId, type: "redeem", delta: -10, at: serverTimestamp(), by: "staff" });
+    tx.set(evRef(customerUid), {
+      orgId,
+      type: "redeem",
+      delta: -10,
+      at: serverTimestamp(),
+      by: "staff",
+    });
   });
 }
 
+/**
+ * +1 sello POR COMPRA al marcar delivered (idempotente, excluye staff/owner y auto-compra).
+ * Idempotencia sin tocar el doc de la orden (evita romper tus Firestore rules para workers).
+ */
 export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string) {
   const orgId = getOrgId();
-  const orderRef = doc(db, "orders", orderId);
+  const orderRef = docIn(db, orgId, "orders", orderId);
 
   await runTransaction(db, async (tx) => {
     const osnap = await tx.get(orderRef);
     if (!osnap.exists()) return;
-    const o = { id: orderId, ...(osnap.data() as any) } as OrderDoc;
+
+    const o = { id: orderId, ...(osnap.data() as any) } as {
+      customerUid?: string | null;
+      staffId?: string | null;
+      total?: number;
+      status?: string;
+      stampsAwarded?: boolean; // legacy (ya no dependemos de esto)
+    };
+
+    // 1) Debe estar entregada
+    if ((o.status || "") !== "delivered") return;
+
+    // 2) Cliente válido
     const uid = o.customerUid || null;
     if (!uid) return;
-    const stamps = countBeverages(o.items);
-    if (stamps <= 0) return;
 
-    const custRef = doc(db, "customers", uid);
+    // 3) No auto-premiarse
+    if (o.staffId && uid === o.staffId) return;
+
+    // 4) Excluir staff/owner del org
+    const mRef = doc(db, "orgs", orgId, "members", uid);
+    const msnap = await tx.get(mRef);
+    if (msnap.exists()) {
+      const r = String((msnap.data() as any)?.role || "client");
+      if (r === "owner" || r === "worker") return;
+    }
+
+    // 5) Orden con total > 0
+    if (Number(o.total || 0) <= 0) return;
+
+    // 6) Idempotencia vía evento con ID determinístico (sin escribir en orders)
+    const eventsRoot = col(db, orgId, "customers");
+    const evId = `order_${orderId}`; // único por orden
+    const evRef = doc(collection(eventsRoot, uid, "loyaltyEvents"), evId);
+    const evSnap = await tx.get(evRef);
+    if (evSnap.exists()) return; // ya otorgado
+
+    // 7) Asegurar doc de cliente (si no existe)
+    const custRef = docIn(db, orgId, "customers", uid);
     const csnap = await tx.get(custRef);
     if (!csnap.exists()) {
       tx.set(custRef, {
-        orgId, stampsProgress: 0, totalStamps: 0, freeCredits: 0,
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-      });
+        uid,
+        email: null,
+        displayName: null,
+        photoURL: null,
+        phoneNumber: null,
+        ...derive(0),
+        isDeleted: false,
+        orgId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } as CustomerDoc);
     }
-    const cur = (csnap.exists() ? csnap.data() : { totalStamps: 0 }) as any;
-    const next = derive(Number(cur.totalStamps || 0) + stamps);
 
-    const eventsCol = collection(db, "customers", uid, "loyaltyEvents");
-    tx.set(doc(eventsCol), { orgId, type: "earn", delta: stamps, orderId, at: serverTimestamp(), staffId: o.staffId || null });
+    const cur = (csnap.exists() ? csnap.data() : { totalStamps: 0 }) as any;
+    const next = derive(Number(cur.totalStamps || 0) + 1);
+
+    // 8) Registrar evento y actualizar contadores
+    tx.set(evRef, {
+      orgId,
+      type: "earn",
+      delta: 1,
+      orderId,
+      at: serverTimestamp(),
+      staffId: o.staffId || null,
+    });
+
     tx.update(custRef, { ...next, updatedAt: serverTimestamp() });
   });
 }

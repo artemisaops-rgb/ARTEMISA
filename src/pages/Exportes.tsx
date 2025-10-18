@@ -1,6 +1,5 @@
-// src/pages/Exportes.tsx
-import { useState } from "react";
-import { db } from "@/services/firebase";
+﻿import { useState } from "react";
+import { db, getOrgId } from "@/services/firebase";
 import {
   collection,
   getDocs,
@@ -10,7 +9,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 
-/** CSV robusto y tipado */
+/** CSV robusto (con BOM) */
 type Row = Record<string, any>;
 
 const toCSV = (rows: Row[]) => {
@@ -27,12 +26,9 @@ const toCSV = (rows: Row[]) => {
     const s = String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-
-  const body = rows
-    .map((r) => headers.map((h) => esc((r as Row)[h])).join(","))
-    .join("\n");
-
-  return headers.join(",") + "\n" + body;
+  const body = rows.map((r) => headers.map((h) => esc((r as Row)[h])).join(",")).join("\n");
+  // BOM para que Excel respete UTF-8
+  return "\uFEFF" + headers.join(",") + "\n" + body;
 };
 
 const download = (name: string, text: string) => {
@@ -48,10 +44,16 @@ const download = (name: string, text: string) => {
 const pad = (n: number) => String(n).padStart(2, "0");
 const fmtDate = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const tsToDate = (v: any, key: string): Date | null =>
+  v?.[key]?.toDate?.() ? v[key].toDate() : null;
+
+type DateField = "createdAt" | "deliveredAt";
 
 export default function Exportes() {
+  const ORG_ID = getOrgId();
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [dateField, setDateField] = useState<DateField>("createdAt");
 
   const needRange = () => {
     if (!desde || !hasta) throw new Error("Selecciona rango");
@@ -61,9 +63,10 @@ export default function Exportes() {
     return { from: Timestamp.fromDate(from), to: Timestamp.fromDate(to) };
   };
 
-  // ---- Export: Inventario ----
+  // ---------------- Inventario ----------------
   const exportInventario = async () => {
-    const snap = await getDocs(collection(db, "inventoryItems"));
+    const qy = query(collection(db, "inventoryItems"), where("orgId", "==", ORG_ID));
+    const snap = await getDocs(qy);
     const rows = snap.docs.map((d) => {
       const v: any = d.data();
       return {
@@ -71,91 +74,143 @@ export default function Exportes() {
         name: v.name ?? "",
         unit: v.unit ?? "",
         stock: Number(v.stock ?? 0),
-        min: Number(v.min ?? 0),
+        minStock: Number(v.minStock ?? v.min ?? 0),
         costPerUnit: Number(v.costPerUnit ?? 0),
-        provider: v.provider ?? "",
+        provider: v.provider ?? v.supplier ?? "",
         updatedAt: v.updatedAt?.toDate?.() ? fmtDate(v.updatedAt.toDate()) : "",
       };
     });
     download("inventario.csv", toCSV(rows));
   };
 
-  // ---- Export: Productos ----
+  // ---------------- Productos ----------------
   const exportProductos = async () => {
-    const snap = await getDocs(collection(db, "products"));
+    const qy = query(collection(db, "products"), where("orgId", "==", ORG_ID));
+    const snap = await getDocs(qy);
     const rows = snap.docs.map((d) => {
       const v: any = d.data();
-      const sizes = Array.isArray(v.sizes)
-        ? v.sizes.map((s: any) => `${s.name}:${Number(s.price || 0)}`).join("|")
-        : "";
+      const sizesArr = Array.isArray(v.sizes) ? v.sizes : [];
+      const sizes = sizesArr.map((s: any) => `${s.name}:${Number(s.price || 0)}`).join("|");
       return {
         id: d.id,
         name: v.name ?? "",
         category: v.category ?? "",
         active: Boolean(v.active ?? true),
-        sizes,
+        sizes,                // "S:2500|M:3000|L:3500"
+        sizesJSON: JSON.stringify(sizesArr ?? []), // por si necesitas parseo fiel
+        updatedAt: v.updatedAt?.toDate?.() ? fmtDate(v.updatedAt.toDate()) : "",
       };
     });
     download("productos.csv", toCSV(rows));
   };
 
-  // ---- "rdenes por rango ----
+  // ---------------- Proveedores ----------------
+  const exportProveedores = async () => {
+    let snap;
+    try {
+      const q1 = query(
+        collection(db, "providers"),
+        where("orgId", "==", ORG_ID),
+        orderBy("name", "asc")
+      );
+      snap = await getDocs(q1);
+    } catch {
+      // Fallback sin orderBy (por si no existe índice localmente)
+      const q2 = query(collection(db, "providers"), where("orgId", "==", ORG_ID));
+      snap = await getDocs(q2);
+    }
+
+    const rows = snap.docs
+      .map((d) => {
+        const v: any = d.data();
+        const packs = Array.isArray(v.packs) ? v.packs.join(" | ") : "";
+        const created = v.createdAt?.toDate?.() ? fmtDate(v.createdAt.toDate()) : "";
+        return {
+          id: d.id,
+          name: v.name ?? "",
+          phone: v.phone ?? "",
+          notes: v.notes ?? "",
+          packs,
+          createdAt: created,
+        };
+      })
+      // si no vino ordenado por índice, ordenamos por nombre
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+
+    download("proveedores.csv", toCSV(rows));
+  };
+
+  // ---------------- Órdenes por rango ----------------
   const qOrdersByRange = () => {
     const { from, to } = needRange();
+    const f = dateField; // "createdAt" | "deliveredAt"
     return query(
       collection(db, "orders"),
-      where("createdAt", ">=", from),
-      where("createdAt", "<", to),
-      orderBy("createdAt", "asc")
+      where("orgId", "==", ORG_ID),
+      where(f, ">=", from),
+      where(f, "<", to),
+      orderBy(f, "asc")
     );
   };
 
-  // ---- Export: Ventas (una fila por orden) ----
+  // Ventas (una fila por orden)
   const exportVentas = async () => {
     try {
       const snap = await getDocs(qOrdersByRange());
       const rows = snap.docs.map((d) => {
         const v: any = d.data();
-        const created = v.createdAt?.toDate?.() ? v.createdAt.toDate() : new Date(0);
+        const created =
+          tsToDate(v, "createdAt") ||
+          tsToDate(v, "at") ||
+          new Date(0);
+        const delivered = tsToDate(v, "deliveredAt");
+        const canceled = tsToDate(v, "canceledAt");
+
         return {
           id: d.id,
-          createdAt: fmtDate(created),
+          createdAt: created ? fmtDate(created) : "",
           status: String(v.status || ""),
           payMethod: String(v.payMethod || ""),
           total: Number(v.total) || 0,
-          cogs: Number(v.cogs) || 0,
+          cogs: Number(v.cogs || 0),
           itemCount: Array.isArray(v.items) ? v.items.length : 0,
           items: Array.isArray(v.items)
             ? v.items.map((it: any) => `${it.name} x ${it.qty}`).join("; ")
             : "",
-          deliveredAt: v.deliveredAt?.toDate?.() ? fmtDate(v.deliveredAt.toDate()) : "",
-          canceledAt: v.canceledAt?.toDate?.() ? fmtDate(v.canceledAt.toDate()) : "",
+          deliveredAt: delivered ? fmtDate(delivered) : "",
+          canceledAt: canceled ? fmtDate(canceled) : "",
+          customerId: v.customerId ?? "",
         };
       });
-      download(`ventas_${desde}_a_${hasta}.csv`, toCSV(rows));
+      download(`ventas_${dateField}_${desde}_a_${hasta}.csv`, toCSV(rows));
     } catch (e: any) {
       alert(e?.message || "Error");
     }
   };
 
-  // ---- Export: Ventas (detalle de tems) ----
+  // Ventas (detalle de ítems)
   const exportVentasItems = async () => {
     try {
       const snap = await getDocs(qOrdersByRange());
       const rows: Row[] = [];
       snap.docs.forEach((d) => {
         const v: any = d.data();
-        const created = v.createdAt?.toDate?.() ? v.createdAt.toDate() : new Date(0);
+        const created =
+          tsToDate(v, "createdAt") ||
+          tsToDate(v, "at") ||
+          new Date(0);
+
         const base = {
           orderId: d.id,
-          createdAt: fmtDate(created),
+          createdAt: created ? fmtDate(created) : "",
           status: String(v.status || ""),
           payMethod: String(v.payMethod || ""),
+          customerId: v.customerId ?? "",
         };
         (v.items || []).forEach((it: any) => {
           rows.push({
             ...base,
-            productId: String(it.productId || ""),
+            productId: String(it.productId || it.id || ""),
             name: String(it.name || ""),
             size: String(it.sizeName || ""),
             qty: Number(it.qty || 0),
@@ -164,18 +219,19 @@ export default function Exportes() {
           });
         });
       });
-      download(`ventas_items_${desde}_a_${hasta}.csv`, toCSV(rows));
+      download(`ventas_items_${dateField}_${desde}_a_${hasta}.csv`, toCSV(rows));
     } catch (e: any) {
       alert(e?.message || "Error");
     }
   };
 
-  // ---- Export: Movimientos de stock ----
+  // ---------------- Movimientos de stock ----------------
   const exportMovimientos = async () => {
     try {
       const { from, to } = needRange();
       const qy = query(
         collection(db, "stockMovements"),
+        where("orgId", "==", ORG_ID),
         where("at", ">=", from),
         where("at", "<", to),
         orderBy("at", "asc")
@@ -191,6 +247,8 @@ export default function Exportes() {
           qty: Number(v.qty || 0),
           reason: v.reason || "",
           orderId: v.orderId || "",
+          itemName: v.itemName || "",
+          unit: v.unit || "",
         };
       });
       download(`stock_movimientos_${desde}_a_${hasta}.csv`, toCSV(rows));
@@ -199,12 +257,13 @@ export default function Exportes() {
     }
   };
 
-  // ---- NEW: Export Movimientos de Caja ----
+  // ---------------- Movimientos de caja ----------------
   const exportCaja = async () => {
     try {
       const { from, to } = needRange();
       const qy = query(
         collection(db, "cashMovements"),
+        where("orgId", "==", ORG_ID),
         where("at", ">=", from),
         where("at", "<", to),
         orderBy("at", "asc")
@@ -229,12 +288,13 @@ export default function Exportes() {
     }
   };
 
-  // ---- Export: Resmenes diarios ----
+  // ---------------- Resúmenes diarios ----------------
   const exportResumenes = async () => {
     try {
       if (!desde || !hasta) throw new Error("Selecciona rango");
       const qy = query(
         collection(db, "dailySummary"),
+        where("orgId", "==", ORG_ID),
         where("date", ">=", desde),
         where("date", "<=", hasta),
         orderBy("date", "asc")
@@ -254,6 +314,7 @@ export default function Exportes() {
           profit: Number(t.profit || 0),
           cashFinal: Number(v.finalCash || 0),
           cashDiff: Number(v.cashDiff || 0),
+          user: v.user || "",
         };
       });
       download(`resumenes_${desde}_a_${hasta}.csv`, toCSV(rows));
@@ -266,6 +327,7 @@ export default function Exportes() {
     <main className="p-4 space-y-4">
       <div className="rounded-2xl border p-4 bg-white shadow-sm space-y-3">
         <div className="font-medium">Exportes</div>
+
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="date"
@@ -273,7 +335,7 @@ export default function Exportes() {
             value={desde}
             onChange={(e) => setDesde(e.target.value)}
           />
-          <span>?"</span>
+          <span>a</span>
           <input
             type="date"
             className="border rounded px-2 py-1"
@@ -281,11 +343,23 @@ export default function Exportes() {
             onChange={(e) => setHasta(e.target.value)}
           />
 
+          <select
+            className="border rounded px-2 py-1"
+            value={dateField}
+            onChange={(e) => setDateField(e.target.value as DateField)}
+            title="Campo de fecha para filtrar ventas"
+          >
+            <option value="createdAt">Filtrar por creación</option>
+            <option value="deliveredAt">Filtrar por entrega</option>
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <button onClick={exportVentas} className="rounded-xl bg-orange-600 text-white px-4 py-2">
             Ventas CSV
           </button>
           <button onClick={exportVentasItems} className="rounded-xl border px-4 py-2">
-            Ventas (detalle tems)
+            Ventas (detalle ítems)
           </button>
           <button onClick={exportMovimientos} className="rounded-xl border px-4 py-2">
             Mov. de stock
@@ -299,8 +373,11 @@ export default function Exportes() {
           <button onClick={exportInventario} className="rounded-xl border px-4 py-2">
             Inventario CSV
           </button>
+          <button onClick={exportProveedores} className="rounded-xl border px-4 py-2">
+            Proveedores CSV
+          </button>
           <button onClick={exportResumenes} className="rounded-xl border px-4 py-2">
-            Resmenes diarios
+            Resúmenes diarios
           </button>
         </div>
       </div>

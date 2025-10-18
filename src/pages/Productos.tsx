@@ -1,3 +1,4 @@
+// src/pages/Productos.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -23,6 +24,19 @@ type InventoryItem = { id: string; name: string; unit?: Unit; costPerUnit?: numb
 const CATS = ["frappes", "coldbrew", "bebidas calientes", "comida"] as const;
 const emptyProduct = (): Product => ({ id: "", name: "", category: "frappes", active: true, sizes: [] });
 
+// ——— Curar mojibake en render/búsqueda ———
+function fixText(s?: string): string {
+  if (!s) return "";
+  if (!/[ÃÂâ]/.test(s)) return s.normalize("NFC");
+  try {
+    const bytes = new Uint8Array([...s].map((ch) => ch.charCodeAt(0)));
+    const decoded = new TextDecoder("utf-8").decode(bytes);
+    return (/[^\u0000-\u001F]/.test(decoded) ? decoded : s).normalize("NFC");
+  } catch {
+    return s.normalize("NFC");
+  }
+}
+
 export default function Productos() {
   const [items, setItems] = useState<Product[]>([]);
   const [qtext, setQtext] = useState("");
@@ -39,9 +53,17 @@ export default function Productos() {
   useEffect(() => {
     (async () => {
       const orgId = getOrgId();
-      const snap = await getDocs(
-        fsQuery(collection(db, "products"), where("orgId", "==", orgId), orderBy("name"))
-      );
+
+      // Intento con orderBy(name); si falta índice, caigo a base y ordeno en cliente
+      let snap;
+      try {
+        snap = await getDocs(
+          fsQuery(collection(db, "products"), where("orgId", "==", orgId), orderBy("name"))
+        );
+      } catch {
+        snap = await getDocs(fsQuery(collection(db, "products"), where("orgId", "==", orgId)));
+      }
+
       const list: Product[] = snap.docs.map((d) => {
         const x: any = d.data();
         const sizes: Size[] = (x.sizes || []).map((s: any, i: number) => ({
@@ -58,13 +80,18 @@ export default function Productos() {
           sizes,
         };
       });
+
+      // Si vino sin ordenar, ordeno por nombre
+      list.sort((a, b) => fixText(a.name).localeCompare(fixText(b.name)));
       setItems(list);
     })();
   }, []);
 
   const filtered = useMemo(() => {
     const t = qtext.trim().toLowerCase();
-    return items.filter((p) => p.category === cat).filter((p) => p.name.toLowerCase().includes(t));
+    return items
+      .filter((p) => p.category === cat)
+      .filter((p) => fixText(p.name).toLowerCase().includes(t));
   }, [items, qtext, cat]);
 
   const upsert = async (p: Product) => {
@@ -84,18 +111,23 @@ export default function Productos() {
         updatedAt: serverTimestamp(),
       };
 
-      let id = p.id;
-      if (!id) {
+      let newId = p.id;
+      if (!p.id) {
         const ref = await addDoc(collection(db, "products"), payload);
-        id = ref.id;
+        newId = ref.id;
       } else {
-        await setDoc(doc(db, "products", id), payload, { merge: true });
+        await setDoc(doc(db, "products", p.id), payload, { merge: true });
       }
 
-      setItems((cur) => {
-        const next = cur.filter((x) => x.id !== id);
-        return [...next, { ...p, id }].sort((a, b) => a.name.localeCompare(b.name));
-      });
+      // 🔧 FIX duplicado: reemplazar el borrador por el doc real
+      const realId = newId;
+      const draftId = p.id; // puede ser un UUID provisional
+      setItems((cur) =>
+        cur
+          .map((x) => (x.id === draftId ? { ...p, id: realId } : x))
+          .sort((a, b) => fixText(a.name).localeCompare(fixText(b.name)))
+      );
+
       setOpen(null);
     } finally {
       setSaving(false);
@@ -103,7 +135,7 @@ export default function Productos() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("¿Eliminar producto?")) return;
+    if (!confirm("Eliminar producto?")) return;
     await deleteDoc(doc(db, "products", id));
     setItems((cur) => cur.filter((x) => x.id !== id));
   };
@@ -142,7 +174,7 @@ export default function Productos() {
       <div className="flex items-center gap-2">
         <input
           className="input flex-1"
-          placeholder="Buscar producto…"
+          placeholder="Buscar producto..."
           value={qtext}
           onChange={(e) => setQtext(e.target.value)}
         />
@@ -153,7 +185,7 @@ export default function Productos() {
           <li key={p.id} className="rounded-2xl border bg-white">
             <div className="px-4 py-3 flex items-center justify-between">
               <div>
-                <div className="font-medium">{p.name || "(sin nombre)"} </div>
+                <div className="font-medium">{fixText(p.name) || "(sin nombre)"} </div>
                 <div className="text-xs text-slate-500">
                   {p.active ? "Activo" : "Inactivo"} · {p.sizes.length} tamaño(s)
                 </div>
@@ -278,7 +310,7 @@ function ProductEditor({
                 className="px-2 py-1 rounded-full border text-xs text-slate-700 bg-white"
                 title={`Precio: $${Number(s.price || 0).toLocaleString()}`}
               >
-                {s.name} · ${Number(s.price || 0).toLocaleString()}
+                {fixText(s.name)} · ${Number(s.price || 0).toLocaleString()}
               </span>
             ))}
             {p.sizes.length === 0 && <span className="text-sm text-slate-500">Sin tamaños.</span>}
@@ -303,7 +335,7 @@ function ProductEditor({
           Cancelar
         </button>
         <button className="btn btn-primary" disabled={saving} onClick={onSave}>
-          {saving ? "Guardando…" : "Guardar"}
+          {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
     </div>
@@ -331,29 +363,34 @@ function SizeEditor({
   useEffect(() => {
     (async () => {
       const orgId = getOrgId();
-      const snap = await getDocs(
-        fsQuery(collection(db, "inventoryItems"), where("orgId", "==", orgId), orderBy("name"))
-      );
-      setInv(
-        snap.docs.map((d) => {
-          const x: any = d.data();
-          return {
-            id: d.id,
-            name: String(x.name || ""),
-            unit: x.unit as Unit,
-            costPerUnit: Number(x.costPerUnit || 0),
-          };
-        })
-      );
+      let snap;
+      try {
+        snap = await getDocs(
+          fsQuery(collection(db, "inventoryItems"), where("orgId", "==", orgId), orderBy("name"))
+        );
+      } catch {
+        snap = await getDocs(fsQuery(collection(db, "inventoryItems"), where("orgId", "==", orgId)));
+      }
+      const arr = snap.docs.map((d) => {
+        const x: any = d.data();
+        return {
+          id: d.id,
+          name: String(x.name || ""),
+          unit: x.unit as Unit,
+          costPerUnit: Number(x.costPerUnit || 0),
+        };
+      });
+      arr.sort((a, b) => fixText(a.name).localeCompare(fixText(b.name)));
+      setInv(arr);
     })();
   }, []);
 
   const unitOf = (id: string) => inv.find((x) => x.id === id)?.unit || "";
   const cpuOf = (id: string) => Number(inv.find((x) => x.id === id)?.costPerUnit || 0);
-  const nameOf = (id: string) => inv.find((x) => x.id === id)?.name || id;
+  const nameOf = (id: string) => fixText(inv.find((x) => x.id === id)?.name || id);
 
   const rows = Object.entries(s.recipe || {});
-  const filtered = inv.filter((x) => x.name?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = inv.filter((x) => fixText(x.name).toLowerCase().includes(search.toLowerCase()));
 
   const update = (patch: Partial<Size>) =>
     setItems((cur) =>
@@ -371,15 +408,9 @@ function SizeEditor({
     update({ recipe });
   };
 
-  const recipeCost = useMemo(() => {
-    return rows.reduce((sum, [ing, amount]) => sum + cpuOf(ing) * Number(amount || 0), 0);
-  }, [rows]);
-
-  const margin = useMemo(() => {
-    const m = Number(s.price || 0) - Number(recipeCost || 0);
-    const pct = Number(s.price || 0) > 0 ? (m / Number(s.price)) * 100 : 0;
-    return { m, pct };
-  }, [s.price, recipeCost]);
+  const recipeCost = rows.reduce((sum, [ing, amount]) => sum + cpuOf(ing) * Number(amount || 0), 0);
+  const m = Number(s.price || 0) - Number(recipeCost || 0);
+  const pct = Number(s.price || 0) > 0 ? (m / Number(s.price)) * 100 : 0;
 
   return (
     <div className="rounded-xl border p-3 bg-white">
@@ -402,12 +433,12 @@ function SizeEditor({
         <div className="md:col-span-3 flex items-center justify-end gap-2">
           <div className="hidden md:block text-sm text-slate-600">
             Costo receta: <span className="font-semibold">${recipeCost.toLocaleString()}</span> · Margen:{" "}
-            <span className={`font-semibold ${margin.m < 0 ? "text-red-600" : "text-emerald-600"}`}>
-              ${margin.m.toLocaleString()}
+            <span className={`font-semibold ${m < 0 ? "text-red-600" : "text-emerald-600"}`}>
+              ${m.toLocaleString()}
             </span>{" "}
             ·{" "}
-            <span className={`font-semibold ${margin.m < 0 ? "text-red-600" : "text-emerald-600"}`}>
-              {margin.pct.toFixed(1)}%
+            <span className={`font-semibold ${m < 0 ? "text-red-600" : "text-emerald-600"}`}>
+              {pct.toFixed(1)}%
             </span>
           </div>
           <button className="btn btn-ghost" onClick={() => setCollapsed((c) => !c)}>
@@ -423,7 +454,7 @@ function SizeEditor({
         {picked ? (
           <div className="flex flex-wrap items-center gap-2">
             <div className="px-3 py-2 border rounded-lg bg-slate-50">
-              <div className="text-sm font-medium">{picked.name}</div>
+              <div className="text-sm font-medium">{fixText(picked.name)}</div>
               <div className="text-xs text-slate-500">
                 Unidad: {picked?.unit || "u"} · Costo/u: ${Number(picked?.costPerUnit || 0).toLocaleString()}
               </div>
@@ -468,7 +499,7 @@ function SizeEditor({
           <div className="relative">
             <input
               className="input w-full"
-              placeholder="Buscar ingrediente por nombre…"
+              placeholder="Buscar ingrediente por nombre..."
               value={search}
               onFocus={() => setComboOpen(true)}
               onChange={(e) => {
@@ -494,7 +525,7 @@ function SizeEditor({
                     }}
                   >
                     <div>
-                      <div className="font-medium text-sm">{it.name}</div>
+                      <div className="font-medium text-sm">{fixText(it.name)}</div>
                       <div className="text-xs text-slate-500">Unidad: {it.unit || "u"}</div>
                     </div>
                     <div className="text-xs text-slate-600">
@@ -579,14 +610,14 @@ function SizeEditor({
             </div>
             <div>
               Margen:{" "}
-              <span className={`font-semibold ${margin.m < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                ${margin.m.toLocaleString()}
+              <span className={`font-semibold ${m < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                ${m.toLocaleString()}
               </span>
             </div>
             <div>
               Margen %:{" "}
-              <span className={`font-semibold ${margin.m < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                {margin.pct.toFixed(1)}%
+              <span className={`font-semibold ${m < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                {pct.toFixed(1)}%
               </span>
             </div>
           </div>

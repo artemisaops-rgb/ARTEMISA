@@ -1,39 +1,41 @@
-﻿import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db, getOrgId } from "@/services/firebase";
-import type { DBRole } from "@/lib/roles";
+﻿// src/hooks/useRole.ts
+import { useEffect, useState } from "react";
+import type { Role } from "@/types";
+import { usePreviewRole } from "@/contexts/PreviewRole";
+import { useOwnerMode } from "@/contexts/OwnerMode";
+import { listenMyMembership } from "@/lib/memberships";
 
-type UseRoleOut = { role: DBRole | null; loading: boolean };
-
-/** Obtiene el rol escuchando /orgs/{orgId}/members/{uid}. Reintenta cuando cambie uid. */
-export function useRole(uid?: string): UseRoleOut {
-  const [role, setRole] = useState<DBRole | null>(null);
+export function useRole(uid?: string | null) {
+  const [realRole, setRealRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
+  const { uiRole } = usePreviewRole();
+  const { mode } = useOwnerMode();
 
   useEffect(() => {
-    const orgId = getOrgId();
-    if (!orgId || !uid) {
-      setRole(null);
-      setLoading(!uid); // si no hay uid, quedamos "cargando"
+    if (!uid) {
+      setRealRole(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
-    const ref = doc(db, "orgs", orgId, "members", uid);
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        const r = (snap.exists() ? (snap.data() as any)?.role : null) as DBRole | null;
-        setRole(r ?? null);
-        setLoading(false);
-      },
-      () => {
-        setRole(null);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
+    const stop = listenMyMembership(uid, (m) => {
+      setRealRole((m?.role as Role) ?? "client");
+      setLoading(false);
+    });
+    return () => stop();
   }, [uid]);
 
-  return { role, loading };
+  const role: Role =
+    (realRole === "owner" ? (uiRole ?? realRole) : (realRole ?? "client")) as Role;
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-role", role ?? "unknown");
+    return () => document.documentElement.removeAttribute("data-role");
+  }, [role]);
+
+  const ownerMonitor = realRole === "owner" && mode === "monitor";
+  const ownerTotal = realRole === "owner" && mode === "control";
+  const isStaff = realRole === "worker" || ownerTotal;
+
+  return { role, isStaff, loading, realRole, ownerMonitor, ownerTotal };
 }
-export default useRole;

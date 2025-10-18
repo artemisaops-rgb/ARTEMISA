@@ -1,11 +1,11 @@
-// src/lib/openDay.ts
+﻿// src/lib/openDay.ts
 import { doc, setDoc, updateDoc, serverTimestamp, collection, getDoc } from "firebase/firestore";
-import { db } from "@/services/firebase";
+import { db, getOrgId } from "@/services/firebase";
 
-/** Usa VITE_ORG_ID si existe; si no, 'default' */
-const ORG_ID = import.meta.env.VITE_ORG_ID ?? "default";
+/** Org actual (multi-tenant) */
+const ORG_ID = getOrgId();
 
-/** YYYY-MM-DD */
+/** YYYY-MM-DD (UTC) */
 function ymd(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }

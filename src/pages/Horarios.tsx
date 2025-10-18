@@ -1,14 +1,6 @@
-// src/pages/Horarios.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  getFirestore,
-  collection,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  addDoc,
-  deleteDoc,
-} from "firebase/firestore";
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { collection, doc, onSnapshot, serverTimestamp, addDoc, deleteDoc } from "firebase/firestore";
+import { db } from "@/services/firebase";
 import { useAuth } from "@/contexts/Auth";
 
 type SlotDoc = {
@@ -18,7 +10,7 @@ type SlotDoc = {
   updatedAt?: any;
 };
 
-const DAYS_ES = ["Lun", "Mar", "Mi", "Jue", "Vie", "Sb", "Dom"] as const;
+const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;
 const OPEN_HOUR = 6;
 const CLOSE_HOUR = 22;
 const ROW_H = 64;
@@ -61,7 +53,6 @@ type DaySlots = { id: string; data: SlotDoc }[];
 type WeekData = Record<string /*YYYY-MM-DD*/, DaySlots>;
 
 export default function Horarios() {
-  const db = getFirestore();
   const { user } = useAuth();
 
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()));
@@ -69,6 +60,11 @@ export default function Horarios() {
   const hours = useMemo(() => hoursArray(), []);
 
   const [week, setWeek] = useState<WeekData>({});
+
+  // Al cambiar de semana/usuario, limpio el estado para no mezclar semanas
+  useEffect(() => {
+    setWeek({});
+  }, [weekStart, user?.uid]);
 
   // ---- Suscripciones: schedules/{uid}/days/{date}/slots ----
   useEffect(() => {
@@ -83,7 +79,7 @@ export default function Horarios() {
       });
     });
     return () => unsubs.forEach((u) => u && u());
-  }, [db, days, user?.uid]);
+  }, [days, user?.uid]);
 
   const [sheet, setSheet] = useState({ open: false, dayIdx: 0, start: "08:00", end: "12:00", note: "" });
 
@@ -116,7 +112,7 @@ export default function Horarios() {
 
   const tryDelete = async (date: string, id: string) => {
     if (!user?.uid) return;
-    if (!window.confirm("Eliminar este bloque?")) return;
+    if (!window.confirm("¿Eliminar este bloque?")) return;
     await deleteDoc(doc(db, "schedules", user.uid, "days", date, "slots", id));
   };
 
@@ -125,9 +121,9 @@ export default function Horarios() {
       <div className="flex items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold">Horarios</h1>
         <div className="flex items-center gap-2">
-          <button className="btn btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>? Semana anterior</button>
+          <button className="btn btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Semana anterior</button>
           <button className="btn btn-sm" onClick={() => setWeekStart(getMonday(new Date()))}>Esta semana</button>
-          <button className="btn btn-sm" onClick={() => setWeekStart(addDays(weekStart, +7))}>Semana siguiente ?'</button>
+          <button className="btn btn-sm" onClick={() => setWeekStart(addDays(weekStart, +7))}>Semana siguiente →</button>
         </div>
       </div>
 
@@ -141,33 +137,52 @@ export default function Horarios() {
       >+</button>
 
       {sheet.open && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center md:justify-center"
-             onClick={(e)=>{ if (e.target === e.currentTarget) setSheet((s)=>({...s, open:false})); }}>
-          <div className="bg-white w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-4 space-y-3" style={{ marginBottom:"var(--bottom-bar-space,160px)" }}>
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center md:justify-center"
+          onClick={(e)=>{ if (e.target === e.currentTarget) setSheet((s)=>({...s, open:false})); }}
+        >
+          <div
+            className="bg-white w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-4 space-y-3"
+            style={{ marginBottom:"var(--bottom-bar-space,160px)" }}
+          >
             <div className="font-semibold text-lg">Nuevo bloque</div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="label">Da</label>
+              <label className="label">Día</label>
               <select className="input" value={sheet.dayIdx} onChange={(e)=>setSheet((s)=>({...s, dayIdx:Number(e.target.value)}))}>
                 {days.map((d,i)=>(<option key={i} value={i}>{DAYS_ES[i]} {fmtDate(d)}</option>))}
               </select>
 
               <label className="label">Inicio</label>
-              <input type="time" className="input" step={900}
-                     min={`${String(OPEN_HOUR).padStart(2,"0")}:00`}
-                     max={`${String(CLOSE_HOUR).padStart(2,"0")}:00`}
-                     value={sheet.start} onChange={(e)=>setSheet((s)=>({...s, start:e.target.value}))} />
+              <input
+                type="time"
+                className="input"
+                step={900}
+                min={`${String(OPEN_HOUR).padStart(2,"0")}:00`}
+                max={`${String(CLOSE_HOUR).padStart(2,"0")}:00`}
+                value={sheet.start}
+                onChange={(e)=>setSheet((s)=>({...s, start:e.target.value}))}
+              />
 
               <label className="label">Fin</label>
-              <input type="time" className="input" step={900}
-                     min={`${String(OPEN_HOUR).padStart(2,"0")}:15`}
-                     max={`${String(CLOSE_HOUR).padStart(2,"0")}:00`}
-                     value={sheet.end} onChange={(e)=>setSheet((s)=>({...s, end:e.target.value}))} />
+              <input
+                type="time"
+                className="input"
+                step={900}
+                min={`${String(OPEN_HOUR).padStart(2,"0")}:15`}
+                max={`${String(CLOSE_HOUR).padStart(2,"0")}:00`}
+                value={sheet.end}
+                onChange={(e)=>setSheet((s)=>({...s, end:e.target.value}))}
+              />
             </div>
 
             <label className="label">Nota (opcional)</label>
-            <input className="input" placeholder="Ej. turno maana, entrega, etc."
-                   value={sheet.note} onChange={(e)=>setSheet((s)=>({...s, note:e.target.value}))} />
+            <input
+              className="input"
+              placeholder="Ej. turno mañana, entrega, etc."
+              value={sheet.note}
+              onChange={(e)=>setSheet((s)=>({...s, note:e.target.value}))}
+            />
 
             <div className="hstack" style={{ gap:8 }}>
               <button className="btn flex-1" onClick={()=>setSheet((s)=>({...s, open:false}))}>Cancelar</button>
@@ -221,17 +236,23 @@ function WeekGrid({
                 const height = ((eMin-sMin)/60)*ROW_H - 6;
 
                 return (
-                  <div key={id}
-                       onClick={()=>onDelete(date, id)}
-                       title={`${data.start}?"${data.end}${data.note ? "  "+data.note : ""}\nToca para eliminar.`}
-                       style={{ position:"absolute", left:8, right:8, top, height,
-                                background:"hsla(24, 95%, 55%, .16)", border:"1.5px solid hsl(24, 90%, 52%)",
-                                color:"hsl(24, 60%, 26%)",
-                                borderRadius:12, padding:"8px 10px", overflow:"hidden",
-                                display:"flex", flexDirection:"column", justifyContent:"space-between",
-                                cursor:"pointer", backdropFilter:"saturate(1.1)" }}>
-                    <div className="text-[12px] font-semibold leading-none">Mi turno</div>
-                    <div className="text-[11px] leading-3 opacity-80">{data.start} ?" {data.end}{data.note ? `  ${data.note}` : ""}</div>
+                  <div
+                    key={id}
+                    onClick={()=>onDelete(date, id)}
+                    title={`${data.start} – ${data.end}${data.note ? "  " + data.note : ""}\nHaz clic para eliminar.`}
+                    style={{
+                      position:"absolute", left:8, right:8, top, height,
+                      background:"hsla(24, 95%, 55%, .16)", border:"1.5px solid hsl(24, 90%, 52%)",
+                      color:"hsl(24, 60%, 26%)",
+                      borderRadius:12, padding:"8px 10px", overflow:"hidden",
+                      display:"flex", flexDirection:"column", justifyContent:"space-between",
+                      cursor:"pointer", backdropFilter:"saturate(1.1)"
+                    }}
+                  >
+                    <div className="text-[12px] font-semibold leading-none">Bloque</div>
+                    <div className="text-[11px] leading-3 opacity-80">
+                      {data.start} – {data.end}{data.note ? `  ${data.note}` : ""}
+                    </div>
                   </div>
                 );
               })}

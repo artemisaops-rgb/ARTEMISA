@@ -1,278 +1,387 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  updateDoc,
   collection,
-  query as fsQuery,
-  where,
+  deleteDoc,
+  doc,
   getDocs,
+  query,
+  serverTimestamp,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { db, getOrgId } from "@/services/firebase";
 import { useAuth } from "@/contexts/Auth";
 
-/** Roles permitidos en BD */
-type DBRole = "owner" | "worker" | "client";
+/** Tipos */
+type Unit = "g" | "ml" | "u";
+type Frequency = "daily" | "weekly" | "monthly";
+
+type CsvRow = {
+  name: string;
+  unit?: string;
+  min?: number | null;
+  minStock?: number | null;
+  target?: number | null;
+  targetStock?: number | null;
+  cost?: number | null;
+  costPerUnit?: number | null;
+  supplier?: string | null;
+  provider?: string | null;
+  frequency?: string | null; // Diario/Semanal/Mensual o daily/weekly/monthly
+};
+
+type SeedItem = {
+  name: string;
+  unit: Unit;
+  minStock: number;
+  targetStock: number | null;  // null = usa min*2 en Bodega
+  costPerUnit: number;
+  supplier: string;
+  frequency: Frequency;        // sólo para consumibles
+};
+
+const normalizeNum = (v: any): number | null => {
+  if (v == null) return null;
+  const s = String(v).replace(/\s+/g, "").replace(/[.$]/g, "").replace(",", ".");
+  if (s === "" || s === "-") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+const mapFreq = (v?: string | null): Frequency => {
+  const s = (v || "").toString().trim().toLowerCase();
+  if (["diario", "día", "daily", "d"].includes(s)) return "daily";
+  if (["semanal", "weekly", "semana", "w", "s"].includes(s)) return "weekly";
+  if (["mensual", "monthly", "mes", "m"].includes(s)) return "monthly";
+  return "daily";
+};
+
+const mapUnit = (v?: string | null): Unit => {
+  const s = (v || "").toString().trim().toLowerCase();
+  if (s === "ml") return "ml";
+  if (s === "u" || s === "unidad" || s === "unidades") return "u";
+  return "g";
+};
+
+// CSV muy simple (comas, comillas opcionales). Si ya usas PapaParse puedes cambiarlo.
+function parseCsv(text: string): CsvRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (!lines.length) return [];
+
+  // parse header
+  const splitCsv = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQ = !inQ;
+        }
+      } else if (ch === "," && !inQ) {
+        out.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+
+  const header = splitCsv(lines[0]).map((h) =>
+    h.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
+  );
+
+  const idx = (keys: string[]) =>
+    header.findIndex((h) => keys.includes(h));
+
+  const iName = idx(["name", "nombre"]);
+  const iUnit = idx(["unit", "unidad"]);
+  const iMin = idx(["min", "minimo", "minstock"]);
+  const iTarget = idx(["target", "objetivo", "par", "targetstock"]);
+  const iCost = idx([
+    "cost",
+    "costou",
+    "costo/u",
+    "costo por unidad",
+    "costperunit",
+    "costperu",
+  ]);
+  const iSupplier = idx(["supplier", "proveedor", "provider"]);
+  const iFreq = idx(["frequency", "frecuencia"]);
+
+  const rows: CsvRow[] = [];
+  for (let li = 1; li < lines.length; li++) {
+    const cols = splitCsv(lines[li]);
+    const name = (cols[iName] || "").trim();
+    if (!name) continue;
+
+    rows.push({
+      name,
+      unit: iUnit >= 0 ? cols[iUnit] : undefined,
+      min: iMin >= 0 ? normalizeNum(cols[iMin]) : null,
+      minStock: iMin >= 0 ? normalizeNum(cols[iMin]) : null,
+      target: iTarget >= 0 ? normalizeNum(cols[iTarget]) : null,
+      targetStock: iTarget >= 0 ? normalizeNum(cols[iTarget]) : null,
+      cost: iCost >= 0 ? normalizeNum(cols[iCost]) : null,
+      costPerUnit: iCost >= 0 ? normalizeNum(cols[iCost]) : null,
+      supplier: iSupplier >= 0 ? (cols[iSupplier] || "") : "",
+      provider: iSupplier >= 0 ? (cols[iSupplier] || "") : "",
+      frequency: iFreq >= 0 ? (cols[iFreq] || "") : "",
+    });
+  }
+  return rows;
+}
 
 export default function AdminSeed() {
   const { user } = useAuth();
   const orgId = getOrgId();
 
-  // =========================
-  //   Costos fijos (igual)
-  // =========================
-  const [monthly, setMonthly] = useState<number>(0);
-  const [loadingCosts, setLoadingCosts] = useState(false);
-  const [loadedAt, setLoadedAt] = useState<string>("");
+  const [rawText, setRawText] = useState<string>("");
+  const [items, setItems] = useState<SeedItem[]>([]);
+  const [selected, setSelected] = useState<Record<number, boolean>>({});
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // Mantengo tu doc "fixedCosts" dentro de settings
-        const snap = await getDoc(doc(db, "settings", "fixedCosts"));
-        const v: any = snap.data() || {};
-        const m = Number(v.monthly || 0);
-        if (!Number.isNaN(m)) setMonthly(m);
-        const ts = v.updatedAt?.toDate?.() ? v.updatedAt.toDate() : null;
-        if (ts) setLoadedAt(ts.toLocaleString());
-      } catch {}
-    })();
-  }, []);
+  const countSelected = useMemo(
+    () => Object.values(selected).filter(Boolean).length,
+    [selected]
+  );
 
-  const saveCosts = async () => {
-    try {
-      setLoadingCosts(true);
-      const value = Math.max(0, Math.round(Number(monthly || 0)));
-      await setDoc(
-        doc(db, "settings", "fixedCosts"),
-        {
-          orgId,
-          monthly: value,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      alert("Costos fijos guardados: " + value.toLocaleString());
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || "No se pudo guardar");
-    } finally {
-      setLoadingCosts(false);
-    }
+  const onFile = async (f: File | null) => {
+    if (!f) return;
+    const txt = await f.text();
+    setRawText(txt);
+
+    const rows = parseCsv(txt);
+    const mapped: SeedItem[] = rows.map((r) => ({
+      name: r.name.trim(),
+      unit: mapUnit(r.unit),
+      minStock: Math.max(0, Number(r.minStock ?? r.min ?? 0) || 0),
+      targetStock:
+        r.targetStock == null && r.target == null
+          ? null
+          : Math.max(0, Number(r.targetStock ?? r.target ?? 0) || 0),
+      costPerUnit: Math.max(0, Number(r.costPerUnit ?? r.cost ?? 0) || 0),
+      supplier: (r.supplier ?? r.provider ?? "").toString().trim(),
+      frequency: mapFreq(r.frequency),
+    }));
+
+    setItems(mapped);
+    // seleccionar todo por defecto
+    const sel: Record<number, boolean> = {};
+    mapped.forEach((_, i) => (sel[i] = true));
+    setSelected(sel);
   };
 
-  // =========================================
-  //   Hacer OWNER al usuario actual (igual)
-  //   + guardo email/displayName en members
-  // =========================================
-  const [makingOwner, setMakingOwner] = useState(false);
-  const makeMeOwner = async () => {
+  const toggle = (i: number) =>
+    setSelected((p) => ({ ...p, [i]: !p[i] }));
+
+  const replaceInventory = async () => {
     if (!user?.uid) return alert("Inicia sesión primero.");
-    setMakingOwner(true);
+    if (!items.length) return alert("Sube el CSV primero.");
+    const chosen = items.filter((_, i) => selected[i]);
+    if (!chosen.length) return alert("No hay filas seleccionadas.");
+
+    if (
+      !confirm(
+        `Esto borrará TODOS los items de inventario del org "${orgId}" y creará ${chosen.length} nuevos con stock=0.\n¿Seguro?`
+      )
+    )
+      return;
+
+    setBusy(true);
     try {
-      await setDoc(
-        doc(db, "orgs", orgId, "members", user.uid),
-        {
+      // 1) Borrar actuales del org
+      const qy = query(
+        collection(db, "inventoryItems"),
+        where("orgId", "==", orgId)
+      );
+      const snap = await getDocs(qy);
+
+      let batch = writeBatch(db);
+      let ops = 0;
+
+      snap.forEach((d) => {
+        batch.delete(doc(db, "inventoryItems", d.id));
+        ops++;
+        if (ops >= 450) {
+          batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
+      });
+      if (ops > 0) await batch.commit();
+
+      // 2) Crear los nuevos (stock=0)
+      batch = writeBatch(db);
+      ops = 0;
+
+      chosen.forEach((it) => {
+        const ref = doc(collection(db, "inventoryItems"));
+        batch.set(ref, {
+          id: ref.id,
           orgId,
-          role: "owner",
-          email: (user.email || "").toLowerCase(),
-          displayName: user.displayName || null,
+          name: it.name,
+          unit: it.unit,
+          stock: 0,
+          minStock: it.minStock,
+          targetStock: it.targetStock, // null => Bodega usa min*2 como par
+          costPerUnit: it.costPerUnit,
+          supplier: it.supplier || "",
+          provider: it.supplier || "",
+          frequency: it.frequency,           // sólo aplica a consumibles
+          periodicity:
+            it.frequency === "daily"
+              ? "daily"
+              : it.frequency === "monthly"
+              ? "monthly"
+              : "weekly",
+          kind: "consumable",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      alert(`Listo. Eres OWNER en el org "${orgId}". Recarga la app.`);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || "No se pudo crear la membresía");
-    } finally {
-      setMakingOwner(false);
-    }
-  };
-
-  const setOrgLocal = () => {
-    const next = prompt('Org a usar (ej: "artemisa")', orgId) || orgId;
-    localStorage.setItem("orgId", next);
-    alert(`orgId guardado en localStorage: ${next}. Recarga la app.`);
-  };
-
-  // ======================================================
-  //   NUEVO: Allowlist de roles por email (settings/{org})
-  //   - Guardamos map roleByEmail[email]=role
-  //   - Intentamos sincronizar miembros existentes por email
-  //   - Si el user aún no inició sesión, se elevará cuando lo haga
-  // ======================================================
-  const [roleEmail, setRoleEmail] = useState("");
-  const [roleValue, setRoleValue] = useState<DBRole>("worker");
-  const [savingRole, setSavingRole] = useState(false);
-  const [roleByEmail, setRoleByEmail] = useState<Record<string, DBRole>>({});
-
-  async function loadAllowlist() {
-    try {
-      // Usamos un doc settings/{orgId} separado (no rompemos fixedCosts)
-      const st = await getDoc(doc(db, "settings", orgId));
-      const data = (st.exists() ? (st.data() as any) : {}) || {};
-      setRoleByEmail((data.roleByEmail as Record<string, DBRole>) || {});
-    } catch {
-      setRoleByEmail({});
-    }
-  }
-
-  useEffect(() => {
-    loadAllowlist();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]);
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
-
-  const saveRoleForEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!roleEmail || !emailRegex.test(roleEmail)) {
-      return alert("Email inválido.");
-    }
-    const clean = roleEmail.trim().toLowerCase();
-    setSavingRole(true);
-    try {
-      // 1) Grabar en settings/{orgId} el map roleByEmail
-      const settingsRef = doc(db, "settings", orgId);
-      const stSnap = await getDoc(settingsRef);
-      const base = stSnap.exists() ? (stSnap.data() as any) : { orgId };
-      const nextMap = { ...(base.roleByEmail || {}), [clean]: roleValue };
-      await setDoc(
-        settingsRef,
-        { ...base, orgId, roleByEmail: nextMap, updatedAt: serverTimestamp() },
-        { merge: true }
-      );
-
-      // 2) Intentar actualizar ya mismo un member existente con ese email
-      //    (si aún no se registró, se actualizará cuando inicie sesión)
-      const membersCol = collection(db, "orgs", orgId, "members");
-      const qy = fsQuery(membersCol, where("email", "==", clean));
-      const res = await getDocs(qy);
-      for (const d of res.docs) {
-        await updateDoc(doc(db, "orgs", orgId, "members", d.id), {
-          role: roleValue,
-          updatedAt: serverTimestamp(),
         });
-      }
+        ops++;
+        if (ops >= 450) {
+          batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
+      });
+      if (ops > 0) await batch.commit();
 
-      setRoleEmail("");
-      setRoleValue("worker");
-      await loadAllowlist();
-
-      alert(`Listo. ${clean} ahora tiene rol "${roleValue}".`);
+      alert("Inventario reemplazado con éxito. Ve a Bodega para verlo.");
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || "No se pudo guardar el rol");
+      alert(e?.message || "No se pudo reemplazar el inventario");
     } finally {
-      setSavingRole(false);
+      setBusy(false);
+    }
+  };
+
+  const wipeOnly = async () => {
+    if (!confirm(`Esto borrará TODOS los items de inventario del org "${orgId}". ¿Continuar?`))
+      return;
+    setBusy(true);
+    try {
+      const qy = query(collection(db, "inventoryItems"), where("orgId", "==", orgId));
+      const snap = await getDocs(qy);
+      let batch = writeBatch(db);
+      let ops = 0;
+      snap.forEach((d) => {
+        batch.delete(doc(db, "inventoryItems", d.id));
+        ops++;
+        if (ops >= 450) {
+          batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
+      });
+      if (ops > 0) await batch.commit();
+      alert("Inventario borrado.");
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo borrar");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="container-app max-w-2xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold">AdminSeed</h1>
+    <div className="container-app max-w-4xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-bold">AdminSeed — Inventario ideal</h1>
 
-      {/* Membresía actual */}
       <section className="rounded-2xl border bg-white p-4 space-y-3">
-        <div className="font-semibold">Membresía del usuario actual</div>
         <div className="text-sm text-slate-600">
-          Sesión: <b>{user?.email || "(sin sesión)"}</b>
-          <div className="text-xs text-slate-500">UID: {user?.uid}</div>
-          <div className="text-xs text-slate-500">orgId actual: {orgId}</div>
+          Org actual: <b>{orgId}</b>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn btn-primary" disabled={!user || makingOwner} onClick={makeMeOwner}>
-            {makingOwner ? "Guardando..." : "Hacerme OWNER en este org"}
-          </button>
-          <button className="btn" onClick={setOrgLocal}>
-            Cambiar orgId (local)
-          </button>
-        </div>
-        <div className="text-xs text-slate-500">
-          Requerido por las reglas para leer/escribir productos, bodega, caja, etc.
-        </div>
-      </section>
 
-      {/* Allowlist de roles por email */}
-      <section className="rounded-2xl border bg-white p-4 space-y-3">
-        <div className="font-semibold">Roles por email (allowlist de la organización)</div>
-        <form onSubmit={saveRoleForEmail} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-            <input
-              type="email"
-              inputMode="email"
-              placeholder="persona@correo.com"
-              className="border rounded-xl px-3 py-2 w-full"
-              value={roleEmail}
-              onChange={(e) => setRoleEmail(e.target.value)}
-              required
-            />
-            <div className="flex gap-2">
-              {(["worker", "owner", "client"] as DBRole[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRoleValue(r)}
-                  className={
-                    "px-3 py-2 border rounded-xl " +
-                    (roleValue === r ? "bg-[var(--brand,#f97316)] text-white border-[var(--brand,#f97316)]" : "")
-                  }
-                >
-                  {r}
-                </button>
-              ))}
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="border rounded-xl px-3 py-2"
+            onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+          />
+          <button
+            className="btn"
+            onClick={wipeOnly}
+            disabled={busy}
+            title="Borra todos los items del org actual"
+          >
+            Borrar inventario del org
+          </button>
+        </div>
+
+        {items.length > 0 && (
+          <>
+            <div className="text-sm">
+              Filas: <b>{items.length}</b> · Seleccionadas: <b>{countSelected}</b>
             </div>
-          </div>
-          <button className="btn btn-primary w-full" disabled={savingRole}>
-            {savingRole ? "Guardando..." : "Guardar rol por email"}
-          </button>
-        </form>
+            <div className="rounded-xl border overflow-auto">
+              <table className="table min-w-[900px]">
+                <thead>
+                  <tr>
+                    <th className="w-10"></th>
+                    <th>Nombre</th>
+                    <th>Unidad</th>
+                    <th>Mín</th>
+                    <th>Objetivo</th>
+                    <th>Costo/u</th>
+                    <th>Proveedor</th>
+                    <th>Frecuencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!!selected[i]}
+                          onChange={() => toggle(i)}
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium">{it.name}</td>
+                      <td className="px-3 py-2">{it.unit}</td>
+                      <td className="px-3 py-2">{it.minStock.toLocaleString()}</td>
+                      <td className="px-3 py-2">
+                        {it.targetStock == null ? <span className="text-slate-400">—</span> : it.targetStock}
+                      </td>
+                      <td className="px-3 py-2">${it.costPerUnit.toLocaleString()}</td>
+                      <td className="px-3 py-2">{it.supplier || <span className="text-slate-400">-</span>}</td>
+                      <td className="px-3 py-2">
+                        {it.frequency === "daily" ? "Diario" : it.frequency === "weekly" ? "Semanal" : "Mensual"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        <div className="pt-2">
-          <div className="text-sm font-medium">Allowlist actual</div>
-          <ul className="text-sm mt-1 space-y-1">
-            {Object.keys(roleByEmail).length === 0 && (
-              <li className="text-slate-500">Vacío.</li>
-            )}
-            {Object.entries(roleByEmail).map(([k, v]) => (
-              <li key={k}>
-                <b>{k}</b> → {v}
-              </li>
-            ))}
-          </ul>
-          <div className="text-xs text-slate-500 mt-2">
-            • Si el usuario aún no inició sesión, se aplicará el rol al primer login.<br />
-            • Si ya existe su membresía con ese email, se actualiza en caliente.
-          </div>
-        </div>
-      </section>
-
-      {/* Costos fijos */}
-      <section className="rounded-2xl border bg-white p-4 space-y-3">
-        <div className="font-semibold">Costos fijos mensuales</div>
-        <label className="text-sm">Valor (moneda base)</label>
-        <input
-          type="number"
-          inputMode="numeric"
-          className="border rounded-xl px-3 py-2 w-full"
-          value={Number.isNaN(monthly) ? 0 : monthly}
-          onChange={(e) => setMonthly(Number(e.target.value))}
-        />
-        {loadedAt && <div className="text-xs text-slate-500">Última carga: {loadedAt}</div>}
-        <button
-          onClick={saveCosts}
-          disabled={loadingCosts}
-          className="btn btn-primary w-full disabled:opacity-60"
-        >
-          {loadingCosts ? "Guardando..." : "Guardar costos fijos"}
-        </button>
-        <p className="text-xs text-slate-500">
-          Este valor alimenta el punto de equilibrio en <b>Estadísticas</b>.
-        </p>
+            <button
+              className="btn btn-primary w-full"
+              disabled={busy || countSelected === 0}
+              onClick={replaceInventory}
+              title="Borra todo y crea lo del CSV con stock=0"
+            >
+              {busy ? "Procesando..." : "Reemplazar inventario con CSV (stock=0)"}
+            </button>
+            <div className="text-xs text-slate-500">
+              • Los campos aceptados por el CSV son flexibles: <i>name/nombre, unit/unidad, min/minStock,
+              target/objetivo/par, cost/costo/u, supplier/proveedor, frequency/frecuencia</i>.<br />
+              • Si <b>Objetivo</b> está vacío, Bodega usará <b>mínimo × 2</b> como par sugerido.
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

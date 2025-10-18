@@ -1,125 +1,91 @@
+/* src/theme.css */
+/* ============================
+   ATLANTIS INTENSE (Azul + Dorado)
+   ============================ */
 :root{
-  /* paleta */
-  --bg: #f8fafc;          /* slate-50 */
-  --fg: #0f172a;          /* slate-900 */
-  --muted: #6b7280;       /* slate-500 */
-  --border: #e5e7eb;      /* slate-200 */
-  --card: #ffffff;
+  /* Azul protagonista */
+  --atl-navy:   #0a2740;
+  --atl-azure:  #00c8ff;
+  --atl-quartz: #6ef6e8;
+  --atl-ice:    #dbeeff;
 
-  /* marca (naranja cálido) */
-  --brand: #ff7a1a;
-  --brand-600: #ea580c;
-  --brand-700: #c2410c;
+  /* Dorados */
+  --gold:  #e3c455;
+  --gold-2:#f6e7a3;
 
-  /* dimensiones */
-  --radius: 16px;
-  --radius-sm: 12px;
-  --shadow: 0 8px 28px rgba(2, 8, 23, .06);
-  --ring: 0 0 0 3px rgba(234,88,12,.20);
-
-  /* altura de barra inferior (para reservar espacio en pantallas) */
-  --bottom-bar-h: 88px;
+  /* Texto/bordes base */
+  --ink:#0f172a;
+  --line:#e5e7eb;
 }
 
-html,body,#root{height:100%}
-*{box-sizing:border-box}
-body{
-  margin:0; background:var(--bg); color:var(--fg);
-  -webkit-font-smoothing:antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
-}
-a{color:inherit; text-decoration:none}
-
-/* contenedor general con espacio para la bottom bar */
-.container-app{
-  max-width: 960px; margin: 0 auto;
-  padding: 24px; padding-bottom: calc(var(--bottom-bar-h) + 24px + env(safe-area-inset-bottom));
+/* Superficies “hero” con azul protagonista */
+.hero, .brand-surface{
+  color: #082233;
+  background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 24px;
+  box-shadow: 0 28px 48px rgba(0,200,255,.25);
 }
 
-/* util para páginas que no usan .container-app */
-.safe-bottom{
-  padding-bottom: calc(var(--bottom-bar-h) + 16px + env(safe-area-inset-bottom));
+/* Chips / botones acento */
+.btn-accent{
+  background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
+  color: var(--atl-navy);
+  border: none;
+  border-radius: 16px;
+  padding: 10px 14px;
+  box-shadow: 0 10px 20px rgba(0,200,255,.25);
 }
 
-/* ocultar scrollbars finos en chips */
-.no-scrollbar::-webkit-scrollbar{ display:none; }
-.no-scrollbar{ -ms-overflow-style:none; scrollbar-width:none; }
-
-/* card */
-.card{ background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius); box-shadow:var(--shadow); }
-
-/* inputs */
-.input{
-  width:100%; border:1px solid var(--border); border-radius:var(--radius-sm);
-  padding:.75rem .9rem; background:#fff;
-  transition: box-shadow .15s ease, border-color .15s ease, transform .04s ease;
-}
-.input:focus{ outline:0; border-color:var(--brand-600); box-shadow:var(--ring); }
-.input::placeholder{ color:#9ca3af }
-
-/* label */
-.label{ display:block; font-size:.8rem; color:var(--muted); margin-bottom:.35rem; }
-
-/* botones */
-.btn{
-  display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
-  padding:.7rem 1rem; border:1px solid var(--border); border-radius:var(--radius-sm);
-  background:#fff; color:var(--fg); cursor:pointer;
-  transition: transform .05s ease, box-shadow .15s ease, background .2s ease, border-color .2s ease, filter .15s ease;
-}
-.btn:hover{ background:#fff; box-shadow:0 4px 16px rgba(2,8,23,.06); transform: translateY(-1px); }
-.btn:active{ transform: translateY(0); }
-.btn:disabled{ opacity:.55; pointer-events:none; }
-.btn-ghost{ background:#fff; }
+/* CTA dorado (sobrescribe .btn-primary si deseas esta variante global) */
 .btn-primary{
-  color:#fff; border-color:transparent;
-  background:linear-gradient(180deg,var(--brand) 0%, var(--brand-600) 100%);
-  box-shadow:0 6px 18px rgba(234,88,12,.25);
+  background: linear-gradient(90deg, var(--gold), var(--gold-2));
+  color: var(--atl-navy);
+  border: none;
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-weight: 700;
+  box-shadow: 0 10px 22px rgba(212,175,55,.28);
 }
-.btn-danger{ color:#b91c1c; background:#fff; border-color:#fecaca; }
-.btn-sm{ padding:.5rem .7rem; border-radius:10px; font-size:.9rem; }
 
-/* utilidades */
-.text-muted{ color:var(--muted); }
-.hstack{ display:flex; align-items:center; gap:.5rem; }
-.vstack{ display:flex; flex-direction:column; gap:.5rem; }
+/* Tarjetas / inputs con sombra suave */
+.container-app{max-width:960px;margin:0 auto;padding:24px 16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(16,24,40,.10)}
+.input{width:100%;border:1px solid #d0d5dd;border-radius:16px;padding:12px 14px;background:#fff}
 
-/* badges */
-.badge{
-  font-size:.75rem; padding:.2rem .55rem; border-radius:999px;
-  border:1px solid var(--border); color:#475569; background:#fff;
+/* NAVBAR “dock” translúcido */
+[data-dock]{
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--atl-ice);
+  border-radius: 26px;
+  backdrop-filter: saturate(1.2) blur(10px);
+  box-shadow: 0 16px 36px rgba(10,39,64,.16), inset 0 1px 0 rgba(255,255,255,.7);
 }
-.badge--ok{ color:#065f46; border-color:#a7f3d0; background:#ecfeff; }
-.badge--busy{ color:#a16207; border-color:#fde68a; background:#fffbeb; }
-.badge--muted{ color:#64748b; }
 
-/* tabla ligera */
-.table{ width:100%; border-collapse:separate; border-spacing:0; font-size:.95rem; }
-.table th{ background:#f1f5f9; text-align:left; padding:.6rem .75rem; font-weight:600; color:#0f172a; }
-.table td{ padding:.6rem .75rem; border-top:1px solid var(--border); }
-
-/* Inventario */
-.inv-group{ display:grid; grid-template-columns:1fr; gap:12px; }
-@media (min-width:640px){ .inv-group{ grid-template-columns:repeat(3,1fr); } }
-.inv-box{ border:1px solid var(--border); border-radius:var(--radius); padding:12px; background:#fff; }
-.inv-title{ font-weight:700; margin-bottom:.2rem; }
-.inv-list{ display:flex; flex-direction:column; gap:10px; }
-.inv-row{ display:flex; flex-direction:column; gap:10px; padding:12px; border:1px solid var(--border); border-radius:12px; }
-@media (min-width:640px){ .inv-row{ flex-direction:row; align-items:center; justify-content:space-between; } }
-.inv-meta{ font-size:.78rem; color:#64748b; }
-
-/* qty grid (botones +/�^' compactos) */
-.qty-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; width:100%; max-width:320px; }
-.qty-btn{ padding:.55rem .75rem; border-radius:12px; }
-
-/* schedule (horarios) */
-.slot-grid{ display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
-@media (min-width:768px){ .slot-grid{ grid-template-columns:repeat(3,1fr); } }
-.slot{
-  height:56px; border:1px solid var(--border); border-radius:14px;
-  display:flex; align-items:center; justify-content:space-between; padding:0 14px;
-  background:#fff; transition: box-shadow .15s ease, transform .04s ease;
+/* Items del dock */
+.dock-item{ color:#475467; transition: transform .08s, color .18s, background .18s; }
+.dock-item .inline-flex{ transition: transform .12s ease, filter .2s ease; }
+.dock-item.is-active{ color: var(--atl-navy); }
+.dock-item.is-active .inline-flex{
+  filter: drop-shadow(0 10px 18px rgba(212,175,55,.35));
 }
-.slot:hover{ box-shadow:0 4px 16px rgba(2,8,23,.06); transform: translateY(-1px); }
-.slot--busy{ background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+
+/* FAB central (dorado) */
+.dock-fab{
+  height:64px; width:64px; border-radius:999px;
+  display:grid; place-items:center;
+  background: linear-gradient(180deg, var(--gold), var(--gold-2));
+  color:#fff;
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow: 0 22px 36px rgba(212,175,55,.35), inset 0 1px 0 rgba(255,255,255,.5);
+  transform: translateY(-12px);
+}
+
+/* Badge utilitaria */
+.badge-accent{
+  background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
+  color: var(--atl-navy);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}

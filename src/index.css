@@ -1,40 +1,205 @@
-@import "tailwindcss"; 
+/* src/index.css */
+/* =========================================
+   Artemisa — index.css (Tailwind v4)
+   ========================================= */
 
+/* 1) Tailwind v4: debe ir primero */
+@import "tailwindcss";
+
+/* 2) Variables de tema (Azul Claro + Dorado) */
 :root{
-  --brand:#ff4d00;        /* naranja artemisa */
-  --brand-600:#ff4d00;
-  --brand-700:#e34500;
-  --ink:#0f172a;          /* slate-900 */
-  --muted:#64748b;        /* slate-500 */
-  --bg: #f8fafc;          /* slate-50 */
+  --blue-deep:#0f2a47;
+  --blue-soft:#f6fbff;
+  --blue-50:#eaf2ff;
 
-  /* fallback para el espacio de la bottom bar si aún no se calculó */
-  --bottom-bar-space: 120px;
+  --gold:#d4af37;
+  --gold-2:#f5d97a;
+  --white:#ffffff;
+
+  --ink:#0f172a;
+  --muted:#667085;
+  --line:#e5e7eb;
+
+  --bg:var(--blue-soft);
+  --card:var(--white);
+
+  --brand:var(--gold);
+  --brand-2:var(--blue-deep);
+
+  --radius-xs:10px;
+  --radius-sm:14px;
+  --radius-md:20px;
+  --radius-lg:24px;
+
+  --shadow-xs:0 1px 2px rgba(16,24,40,.06);
+  --shadow-sm:0 6px 14px rgba(16,24,40,.08);
+  --shadow-md:0 10px 30px rgba(16,24,40,.10);
+  --shadow-lg:0 24px 48px rgba(16,24,40,.14);
+
+  --nav-height: 84px;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-bar-space: calc(var(--nav-height) + var(--safe-area-bottom));
 }
 
-html, body, #root { height: 100%; }
+/* Puedes variar el brand por rol en el futuro */
+html[data-role="client"]{ --brand:var(--gold); }
+html[data-role="owner"] { --brand:var(--gold); }
+html[data-role="worker"]{ --brand:var(--gold); }
+
+/* 3) Reseteos mínimos + estructura base */
+html,body,#root{ height:100%; }
+*{ box-sizing:border-box; }
+
 body{
-  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: var(--bg);
+  position: relative;         /* crea contexto para ::before */
+  margin: 0;
+  background: #ffffff;        /* sin gradiente aquí; lo pinta ::before */
   color: var(--ink);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Helvetica Neue", Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  padding-bottom: var(--bottom-bar-space);
+  min-height: 100%;
 }
 
-/* helpers */
-.container-app{
-  @apply max-w-3xl mx-auto px-4;
-  /* ¡IMPORTANTE!: deja espacio real para la barra inferior */
-  padding-bottom: max(var(--bottom-bar-space, 120px), env(safe-area-inset-bottom));
+/* El root va por encima del pseudo-fondo */
+#root{ position: relative; z-index: 1; }
+
+/* === FONDO GLOBAL CONTINUO ===
+   - Dos radiales + un linear de relleno, sin “transparent” duro para evitar líneas
+   - Vive en body ::before para cubrir toda la página
+*/
+body::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      120% 85% at 50% -20%,
+      rgba(127,231,255,.55) 0%,
+      rgba(127,231,255,.30) 40%,
+      rgba(127,231,255,.12) 70%,
+      rgba(127,231,255,0) 100%
+    ),
+    radial-gradient(
+      120% 90% at 50% 120%,
+      rgba(195,255,241,.28) 0%,
+      rgba(195,255,241,.16) 45%,
+      rgba(195,255,241,.08) 70%,
+      rgba(195,255,241,0) 100%
+    ),
+    linear-gradient(180deg, #eafaff 0%, #f6fbff 45%, #ffffff 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-size: 160% 80%, 160% 80%, 100% 100%;
+  background-position: center top, center bottom, center top;
 }
-.card{ @apply bg-white border border-gray-200 rounded-2xl shadow-sm; }
-.btn{
-  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold transition;
+
+/* Si el componente AtlBackground está montado, ocultar su capa base para evitar doble fondo */
+#atl-bg-root .atl-bg.base{ display: none !important; }
+
+/* 4) Contenedor de páginas y tarjetas */
+.container-app{ max-width:960px; margin:0 auto; padding:24px 16px; }
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius-md);
+  padding:16px;
+  box-shadow:var(--shadow-md);
 }
-.btn-primary{
-  background: var(--brand); color:white;
-}
-.btn-primary:hover{ background: var(--brand-700); }
-.btn-ghost{ @apply border border-gray-300 bg-white hover:bg-gray-50; }
+
+/* 5) Controles básicos */
 .input{
-  @apply w-full rounded-xl border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-orange-200;
+  width:100%;
+  border:1px solid #d0d5dd;
+  border-radius: var(--radius-sm);
+  padding:10px 12px;
+  background:#fff;
+  outline:none;
 }
-.label{ @apply text-sm text-gray-600 mb-1; }
+
+.label{
+  font-size:.875rem;
+  color:#475467;
+  margin-bottom:.25rem;
+}
+
+.btn{
+  border:1px solid #d0d5dd;
+  background:#fff;
+  padding:10px 14px;
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  transition: box-shadow .15s ease, transform .06s ease;
+}
+.btn:hover{ box-shadow: var(--shadow-xs); }
+.btn:active{ transform: translateY(1px); }
+
+.btn-sm{ padding:8px 10px; border-radius:12px; font-size:.875rem; }
+.btn-ghost{
+  background:#fff;
+  border-color:#e5e7eb;
+  color:#0f2a47;
+}
+.btn-ghost:hover{
+  background:#f8fafc;
+  border-color:#e2e8f0;
+}
+.btn-danger{
+  background:#fff;
+  color:#b42318;
+  border-color:#fecaca;
+}
+.btn-danger:hover{
+  background:#fff5f5;
+  border-color:#fca5a5;
+}
+
+.btn-primary{
+  background:linear-gradient(90deg,var(--gold),var(--gold-2));
+  color:var(--blue-deep);
+  border:none;
+  font-weight:700;
+  box-shadow:0 6px 16px rgba(212,175,55,.25);
+}
+
+/* 6) Tabla ligera */
+.table{ width:100%; border-collapse:separate; border-spacing:0; }
+.table thead th{ color:#667085; font-weight:600; padding:12px; text-align:left; }
+.table tbody td{ padding:12px; border-top:1px solid #f2f4f7; }
+
+/* 7) Bottom bar (dock) */
+[data-bottom-bar]{
+  background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.92));
+  border:1px solid var(--blue-50);
+  box-shadow:
+    0 12px 32px rgba(15,42,71,.12),
+    inset 0 1px 0 rgba(255,255,255,.6);
+  backdrop-filter:saturate(1.1) blur(6px);
+}
+
+.bottom-menu-item{
+  color:#476082;
+  transition:transform .08s ease, background .15s ease, color .15s ease;
+}
+.bottom-menu-item .icon{ width:22px; height:22px; line-height:0; }
+.bottom-menu-item .icon svg{ width:22px; height:22px; display:block; color:var(--blue-deep); }
+.bottom-menu-item .icon .icon-wrap{
+  display:inline-block;
+  filter: drop-shadow(0 2px 6px rgba(13,30,59,.16));
+  transition: filter .2s ease, transform .12s ease;
+}
+.bottom-menu-item.is-active{
+  background: linear-gradient(135deg, var(--gold), var(--gold-2));
+  color: var(--blue-deep);
+  box-shadow: 0 10px 22px rgba(212,175,55,.30), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.bottom-menu-item.is-active .icon .icon-wrap{
+  transform: translateY(-1px);
+  filter: drop-shadow(0 10px 18px rgba(212,175,55,.40));
+}
+
+/* 8) Utilidades */
+.hide-scrollbar{ scrollbar-width:none; }
+.hide-scrollbar::-webkit-scrollbar{ display:none; }

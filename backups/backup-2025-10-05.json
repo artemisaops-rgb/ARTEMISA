@@ -1,0 +1,107 @@
+{
+  "products": [
+    {
+      "id": "ccb9b8f5-b198-4678-8b9f-01e92cfd9136",
+      "active": true,
+      "category": "frappes",
+      "orgId": "artemisa",
+      "name": "frappe de milo",
+      "sizes": [
+        {
+          "id": "65063d90-c726-4db9-8bfd-e1815125b13c",
+          "name": "pequeño",
+          "price": 6000,
+          "recipe": {
+            "mzFddONYjtqledLSfQPq": 20,
+            "MbPunRJ0qJJOpKzlN1h6": 300,
+            "TXyeZmW8L8TYlnrV8c47": 20
+          }
+        },
+        {
+          "id": "2ad29d5c-3645-4ad8-8ae5-8c147f92a6a2",
+          "name": "mediano",
+          "price": 12000,
+          "recipe": {}
+        },
+        {
+          "id": "61c9cd1b-0d71-400d-8151-237615478b94",
+          "name": "grande",
+          "price": 15000,
+          "recipe": {}
+        }
+      ],
+      "updatedAt": {
+        "_seconds": 1759601743,
+        "_nanoseconds": 448000000
+      }
+    }
+  ],
+  "inventoryItems": [
+    {
+      "id": "MbPunRJ0qJJOpKzlN1h6",
+      "orgId": "artemisa",
+      "name": "leche",
+      "unit": "ml",
+      "minStock": 1000,
+      "costPerUnit": 4,
+      "supplier": "",
+      "provider": "",
+      "frequency": "daily",
+      "periodicity": "daily",
+      "kind": "consumable",
+      "createdAt": {
+        "_seconds": 1759601612,
+        "_nanoseconds": 877000000
+      },
+      "stock": 2000,
+      "updatedAt": {
+        "_seconds": 1759637332,
+        "_nanoseconds": 946000000
+      }
+    },
+    {
+      "id": "TXyeZmW8L8TYlnrV8c47",
+      "orgId": "artemisa",
+      "name": "milo",
+      "unit": "g",
+      "minStock": 1000,
+      "costPerUnit": 40,
+      "supplier": "",
+      "provider": "",
+      "frequency": "weekly",
+      "periodicity": "weekly",
+      "kind": "consumable",
+      "createdAt": {
+        "_seconds": 1759601563,
+        "_nanoseconds": 940000000
+      },
+      "stock": 4800,
+      "updatedAt": {
+        "_seconds": 1759637332,
+        "_nanoseconds": 946000000
+      }
+    },
+    {
+      "id": "mzFddONYjtqledLSfQPq",
+      "orgId": "artemisa",
+      "name": "azucar",
+      "unit": "g",
+      "supplier": "",
+      "provider": "",
+      "frequency": "daily",
+      "periodicity": "daily",
+      "kind": "consumable",
+      "createdAt": {
+        "_seconds": 1759601572,
+        "_nanoseconds": 629000000
+      },
+      "minStock": 1000,
+      "costPerUnit": 5,
+      "stock": 4800,
+      "updatedAt": {
+        "_seconds": 1759637332,
+        "_nanoseconds": 946000000
+      }
+    }
+  ]
+}

@@ -1,29 +1,29 @@
-// src/types.ts
-export type Recipe = { [ingredientId: string]: number }; // gramos/ml/u por 1 unidad
+﻿// src/types.ts
+export type Recipe = Record<string, number>; // gramos/ml/u por 1 unidad
 
 export type ProductSize = {
-  label: string;           // ej: "Pequeo", "Mediano", "Grande"
-  price: number;           // precio de ese tamao
-  recipe?: Recipe;         // receta especfica para ese tamao
+  label: string;           // ej: "Pequeño", "Mediano", "Grande"
+  price: number;           // precio de ese tamaño
+  recipe?: Recipe;         // receta específica para ese tamaño
 };
 
 export type Product = {
   id: string;
   name: string;
-  price: number;           // precio base (si no hay tamaos)
+  price: number;           // precio base (si no hay tamaños)
   active: boolean;
   photoUrl?: string;
   category?: string;       // "frappes" | "coldbrew" | "bebidas calientes" | "comida"
-  recipe?: Recipe;         // receta base (sin tamaos)
-  sizes?: ProductSize[];   // variantes por tamao
+  recipe?: Recipe;         // receta base (sin tamaños)
+  sizes?: ProductSize[];   // variantes por tamaño
 };
 
 export type CartItem = {
   id: string;              // si viene de size: productId:sizeLabel
-  name: string;            // "Frappe de caf (Grande)"
+  name: string;            // "Frappe de café (Grande)"
   price: number;
   qty: number;
-  recipe?: Recipe;         // receta efectiva del tem
+  recipe?: Recipe;         // receta efectiva del ítem
 };
 
 export type Sale = {
@@ -34,3 +34,4 @@ export type Sale = {
   payment: { method: "cash" | "card" | "other"; amount: number };
 };
 
+export type Role = "owner" | "worker" | "client";

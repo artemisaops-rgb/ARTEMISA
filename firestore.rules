@@ -1,63 +1,247 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{db}/documents {
+  match /databases/{database}/documents {
 
-    function isLoggedIn() { return request.auth != null; }
+    /* ===== Helpers ===== */
+    function isSignedIn() { return request.auth != null; }
 
-    function orgOf() {
-      return (resource.data.orgId != null)
-        ? resource.data.orgId
-        : request.resource.data.orgId;
+    // Soporta membresía en dos lugares:
+    // A) /orgs/{orgId}/members/{uid}
+    // B) /memberships/{uid}
+    function memberNested(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
     }
-
-    function isMember(orgId) {
-      return isLoggedIn() &&
-        exists(/databases/$(db)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    function memberFlat() {
+      return get(/databases/$(database)/documents/memberships/$(request.auth.uid));
+    }
+    function hasMemberDoc(orgId) {
+      return isSignedIn() && (
+        (memberNested(orgId).data != null && memberNested(orgId).data.orgId == orgId) ||
+        (memberFlat().data != null && memberFlat().data.orgId == orgId)
+      );
     }
     function role(orgId) {
-      return get(/databases/$(db)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role;
+      return memberNested(orgId).data.role != null ? memberNested(orgId).data.role :
+             memberFlat().data.role != null   ? memberFlat().data.role :
+             null;
     }
-    function isStaff(orgId) {
-      let r = role(orgId);
-      return r == "worker" || r == "owner";
-    }
-    function isOwner(orgId) { return role(orgId) == "owner"; }
+    function isOwner(orgId) { return role(orgId) == 'owner'; }
+    function isWorker(orgId) { return role(orgId) == 'worker'; }
+    function isStaff(orgId)  { return isOwner(orgId) || isWorker(orgId); }
+    function isClient(orgId) { return role(orgId) == 'client'; }
 
-    function customerOrg(uid) {
-      return get(/databases/$(db)/documents/customers/$(uid)).data.orgId;
+    /* ===== Members (subcolección) ===== */
+    match /orgs/{orgId}/members/{memberId} {
+      allow read:   if isSignedIn() && (
+                      memberId == request.auth.uid || isStaff(orgId) ||
+                      (resource.data.userId == request.auth.uid && resource.data.orgId == orgId)
+                    );
+      allow create: if isSignedIn()
+                    && request.resource.data.orgId == orgId
+                    && (memberId == request.auth.uid || isStaff(orgId));
+      allow update: if isSignedIn()
+                    && resource.data.orgId == orgId
+                    && (memberId == request.auth.uid || isStaff(orgId));
+      allow delete: if isStaff(orgId);
     }
 
-    match /orgs/{orgId}/members/{uid} {
-      allow read:   if isLoggedIn() && (request.auth.uid == uid || isOwner(orgId));
-      allow write:  if isLoggedIn() && (request.auth.uid == uid || isOwner(orgId));
+    /* ===== Members (colección plana) ===== */
+    match /memberships/{uid} {
+      allow read:   if isSignedIn() && (
+                      uid == request.auth.uid ||
+                      (resource.data.orgId != null && isStaff(resource.data.orgId)) ||
+                      (resource.data.userId == request.auth.uid)
+                    );
+      // En producción, normalmente sólo owner crea/actualiza aquí.
+      allow create, update:
+                    if request.resource.data.orgId != null && isOwner(request.resource.data.orgId);
+      allow delete: if false;
     }
 
+    /* ===== Customers ===== */
     match /customers/{uid} {
-      allow read:   if (isLoggedIn() && request.auth.uid == uid) || isMember(orgOf());
-      allow create: if isLoggedIn() && request.auth.uid == uid;
-      allow update: if isLoggedIn() && (request.auth.uid == uid || isStaff(orgOf()));
-      allow delete: if isOwner(orgOf());
-
-      match /loyaltyEvents/{eventId} {
-        allow read:   if (isLoggedIn() && request.auth.uid == uid) || isMember(orgOf());
-        allow create: if isStaff(orgOf()) && request.resource.data.orgId == customerOrg(uid);
-        allow update, delete: if false;
-      }
+      allow read:   if isSignedIn() && (
+                      request.auth.uid == uid ||
+                      (resource.data.orgId != null && isStaff(resource.data.orgId))
+                    );
+      allow create: if isSignedIn() && (
+                      request.auth.uid == uid ||
+                      (request.resource.data.orgId != null && isStaff(request.resource.data.orgId))
+                    );
+      allow update: if isSignedIn() && (
+                      request.auth.uid == uid ||
+                      (resource.data.orgId != null && isStaff(resource.data.orgId))
+                    );
+      allow delete: if resource.data.orgId != null && isStaff(resource.data.orgId);
     }
 
-    match /schedules/{uid}/{document=**} {
-      allow read, write: if isLoggedIn() && request.auth.uid == uid;
+    match /customers/{uid}/loyaltyEvents/{eventId} {
+      allow read:   if isSignedIn() && (
+                      request.auth.uid == uid ||
+                      (get(/databases/$(database)/documents/customers/$(uid)).data.orgId != null &&
+                       isStaff(get(/databases/$(database)/documents/customers/$(uid)).data.orgId))
+                    );
+      allow create: if isSignedIn() &&
+                      isStaff(get(/databases/$(database)/documents/customers/$(uid)).data.orgId);
+      allow update, delete: if false;
     }
 
-    match /{colName}/{docId} {
-      allow read:  if (colName in [
-                      "orders","products","inventoryItems","stockMovements",
-                      "openings","cashMovements","dailySummary","horarios","exports"
-                    ]) && isMember(orgOf());
-      allow write: if (colName in [
-                      "orders","products","inventoryItems","stockMovements",
-                      "openings","cashMovements","dailySummary","horarios","exports"
-                    ]) && isStaff(orgOf());
+    /* ===== Schedules ===== */
+    match /schedules/{uid}/days/{date}/slots/{slotId} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
+
+    /* ===== Products ===== */
+    match /products/{id} {
+      // Lectura para miembros de la org (incluye client autenticado)
+      allow read:   if resource.data.orgId != null && hasMemberDoc(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isStaff(request.resource.data.orgId);
+      allow update, delete:
+                    if resource.data.orgId != null && isStaff(resource.data.orgId);
+    }
+
+    /* ===== Inventory ===== */
+    match /inventoryItems/{id} {
+      allow read:   if resource.data.orgId != null && isStaff(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isStaff(request.resource.data.orgId);
+      allow update, delete:
+                    if resource.data.orgId != null && isStaff(resource.data.orgId);
+    }
+
+    /* ===== Providers ===== */
+    match /providers/{id} {
+      allow read:   if resource.data.orgId != null && isStaff(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isStaff(request.resource.data.orgId);
+      allow update, delete:
+                    if resource.data.orgId != null && isStaff(resource.data.orgId);
+    }
+
+    /* ===== Purchases ===== */
+    match /purchases/{id} {
+      // Sólo staff de la misma org
+      allow read:   if resource.data.orgId != null && isStaff(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isStaff(request.resource.data.orgId);
+      allow update: if resource.data.orgId != null && isStaff(resource.data.orgId);
+      allow delete: if false;
+    }
+
+    /* ===== Openings (Apertura/Cierre de caja por usuario) ===== */
+    match /openings/{id} {
+      // Leer: staff de la org o el propio usuario dueño del doc
+      allow read: if resource.data.orgId != null && (
+                    isStaff(resource.data.orgId) ||
+                    (resource.data.userId == request.auth.uid)
+                  );
+      // Crear: usuario dueño o staff (orgId debe coincidir)
+      allow create: if request.resource.data.orgId != null &&
+                    (request.resource.data.userId == request.auth.uid || isStaff(request.resource.data.orgId));
+      // Actualizar: staff de la org o el propio usuario mientras el doc esté "open"
+      allow update: if resource.data.orgId != null && (
+                      isStaff(resource.data.orgId) ||
+                      (resource.data.userId == request.auth.uid && resource.data.status == 'open')
+                    );
+      allow delete: if false;
+    }
+
+    /* ===== Orders ===== */
+    match /orders/{id} {
+      allow read: if resource.data.orgId != null && (
+                    isStaff(resource.data.orgId) ||
+                    (hasMemberDoc(resource.data.orgId) &&
+                     isClient(resource.data.orgId) &&
+                     request.auth.uid == resource.data.customerUid)
+                  );
+
+      allow create: if request.resource.data.orgId != null && isStaff(request.resource.data.orgId);
+
+      // Worker puede marcar delivered sólo si el resto no cambia; owner tiene control total.
+      allow update: if resource.data.orgId != null && (
+        isOwner(resource.data.orgId) ||
+        (
+          isWorker(resource.data.orgId) &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'delivered' &&
+          request.resource.data.orgId == resource.data.orgId &&
+          request.resource.data.total == resource.data.total &&
+          request.resource.data.items == resource.data.items &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.payMethod == resource.data.payMethod &&
+          (request.resource.data.customerUid == resource.data.customerUid)
+        )
+      );
+
+      allow delete: if resource.data.orgId != null
+                    && isOwner(resource.data.orgId)
+                    && resource.data.status != 'delivered';
+    }
+
+    /* ===== Stock movements ===== */
+    match /stockMovements/{id} {
+      allow read:   if resource.data.orgId != null && isStaff(resource.data.orgId);
+
+      // Acepta modelo antiguo (consume/revert/buy/adjust) y nuevo (in/out).
+      // qty siempre positiva; reason puede ser null o uno de la lista.
+      allow create: if request.resource.data.orgId != null
+                     && isStaff(request.resource.data.orgId)
+                     && request.resource.data.qty > 0
+                     && (
+                          (request.resource.data.type in ['consume','revert','buy','adjust']) ||
+                          (request.resource.data.type in ['in','out'])
+                        )
+                     && (request.resource.data.reason == null
+                         || request.resource.data.reason in ['sale','cancel','delete','purchase','manual']);
+
+      allow update, delete:
+                    if resource.data.orgId != null && isStaff(resource.data.orgId);
+    }
+
+    /* ===== Cash movements ===== */
+    match /cashMovements/{id} {
+      allow read:   if resource.data.orgId != null && isStaff(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null
+                     && isStaff(request.resource.data.orgId)
+                     && request.resource.data.userId == request.auth.uid
+                     && (request.resource.data.type in ['in','out'])
+                     && request.resource.data.amount > 0;
+      allow update, delete:
+                    if resource.data.orgId != null && isStaff(resource.data.orgId);
+    }
+
+    /* ===== Daily summary ===== */
+    match /dailySummary/{id} {
+      allow read:   if resource.data.orgId != null && isOwner(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isOwner(request.resource.data.orgId);
+      allow update, delete:
+                    if resource.data.orgId != null && isOwner(resource.data.orgId);
+    }
+
+    /* ===== Settings (allowlist por email, etc.) ===== */
+    match /settings/{orgId} {
+      // Lectura para miembros de la org (si es usuario nuevo y aún no es miembro,
+      // tu código hace try/catch y cae a role "client" por defecto).
+      allow read:   if hasMemberDoc(orgId) || isStaff(orgId);
+      allow create: if isOwner(orgId) && request.resource.data.orgId == orgId;
+      allow update: if isOwner(orgId);
+      allow delete: if false;
+    }
+
+    /* ===== Org Settings (si decides usar este nombre) ===== */
+    match /orgSettings/{orgId} {
+      allow read:   if hasMemberDoc(orgId);
+      allow create: if isOwner(orgId) && request.resource.data.orgId == orgId;
+      allow update: if isOwner(orgId);
+      allow delete: if false;
+    }
+
+    /* ===== Exports ===== */
+    match /exports/{id} {
+      allow read:   if resource.data.orgId != null && isOwner(resource.data.orgId);
+      allow create: if request.resource.data.orgId != null && isOwner(request.resource.data.orgId);
+      allow update, delete:
+                    if resource.data.orgId != null && isOwner(resource.data.orgId);
+    }
+
+    /* Fallback */
+    match /{document=**} { allow read, write: if false; }
   }
 }

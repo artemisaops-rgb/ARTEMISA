@@ -1,4 +1,4 @@
-export type Size = { id: string; label: string; price: number; iva: number; };
+﻿export type Size = { id: string; label: string; price: number; iva: number; };
 export type RecipeItem = { ingredientId: string; qty: number }; // u/g/ml segn bodega
 
 export type Product = {

@@ -1,43 +1,102 @@
-﻿import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+﻿// src/lib/memberships.ts
+import {
+  doc,
+  onSnapshot,
+  getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  type Unsubscribe,
+} from "firebase/firestore";
 import { db, getOrgId } from "@/services/firebase";
 import type { DBRole } from "@/lib/roles";
 
-type Args = { uid: string; email?: string | null; displayName?: string | null };
+export type Membership = {
+  orgId: string;
+  role: DBRole;              // 'owner' | 'worker' | 'client'
+  uid: string;
+  email?: string | null;
+  displayName?: string | null;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+/** Escucha SOLO la membresía anidada: /orgs/{orgId}/members/{uid} */
+export function listenMyMembership(
+  uid: string,
+  cb: (m: Membership | null) => void
+): Unsubscribe {
+  const orgId = getOrgId();
+  const ref = doc(db, "orgs", orgId, "members", uid);
+  return onSnapshot(
+    ref,
+    (s) => cb(s.exists() ? ({ uid, ...(s.data() as any) } as Membership) : null),
+    () => cb(null)
+  );
+}
+
+export async function getMyMembership(uid: string): Promise<Membership | null> {
+  const orgId = getOrgId();
+  const snap = await getDoc(doc(db, "orgs", orgId, "members", uid));
+  return snap.exists() ? ({ uid, ...(snap.data() as any) } as Membership) : null;
+}
+
+/** Lee el rol deseado por allowlist (orgSettings.roleByEmail). Fallback a settings/{orgId} por legacy. */
+async function readDesiredRoleByEmail(orgId: string, email: string | null | undefined): Promise<DBRole | null> {
+  const clean = (email || "").trim().toLowerCase();
+  if (!clean) return null;
+
+  // 1) Colección nueva: orgSettings/{orgId}
+  try {
+    const st = await getDoc(doc(db, "orgSettings", orgId));
+    const map = (st.exists() ? (st.data() as any).roleByEmail : null) || {};
+    if (map && map[clean]) return map[clean] as DBRole;
+  } catch {
+    // ignore permission-denied (aún no hay membresía) o inexistente
+  }
+
+  // 2) Legacy: settings/{orgId}
+  try {
+    const stLegacy = await getDoc(doc(db, "settings", orgId));
+    const map = (stLegacy.exists() ? (stLegacy.data() as any).roleByEmail : null) || {};
+    if (map && map[clean]) return map[clean] as DBRole;
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
 
 /**
  * Crea/actualiza la membresía del usuario al iniciar sesión.
- * - Lee settings/{orgId}.roleByEmail[email] para decidir el rol (si no, 'client').
- * - Guarda email y displayName en orgs/{orgId}/members/{uid}.
+ * Solo escribe en /orgs/{orgId}/members/{uid}.
  */
-export async function ensureMemberOnLogin({ uid, email, displayName }: Args) {
+export async function ensureMemberOnLogin({
+  uid,
+  email,
+  displayName,
+}: {
+  uid: string;
+  email?: string | null;
+  displayName?: string | null;
+}) {
   if (!uid) return;
 
   const orgId = getOrgId();
   const ref = doc(db, "orgs", orgId, "members", uid);
-  const snap = await getDoc(ref);
-
   const cleanEmail = (email || "").trim().toLowerCase();
 
-  // 1) Allowlist de roles por email
-  let desiredRole: DBRole | null = null;
-  try {
-    const st = await getDoc(doc(db, "settings", orgId));
-    const map = (st.exists() ? (st.data() as any).roleByEmail : null) || {};
-    if (cleanEmail && map[cleanEmail]) desiredRole = map[cleanEmail] as DBRole;
-  } catch {
-    // no-op
-  }
+  // Allowlist por email (puede fallar por permisos al no tener aún membresía; es OK)
+  const desiredRole = await readDesiredRoleByEmail(orgId, cleanEmail);
 
-  const fallbackRole: DBRole = "client";
-
-  // 2) Crear o actualizar member
+  const snap = await getDoc(ref);
   if (!snap.exists()) {
     await setDoc(
       ref,
       {
         orgId,
         uid,
-        role: (desiredRole || fallbackRole) as DBRole,
+        role: (desiredRole || "client") as DBRole,
         email: cleanEmail || null,
         displayName: displayName || null,
         createdAt: serverTimestamp(),
@@ -48,14 +107,12 @@ export async function ensureMemberOnLogin({ uid, email, displayName }: Args) {
     return;
   }
 
-  const current = snap.data() as any;
+  const cur = snap.data() as any;
   const patch: Record<string, any> = { updatedAt: serverTimestamp() };
 
-  if ((current.email || null) !== (cleanEmail || null)) patch.email = cleanEmail || null;
-  if ((current.displayName || null) !== (displayName || null)) patch.displayName = displayName || null;
-  if (desiredRole && current.role !== desiredRole) patch.role = desiredRole;
+  if ((cur.email || null) !== (cleanEmail || null)) patch.email = cleanEmail || null;
+  if ((cur.displayName || null) !== (displayName || null)) patch.displayName = displayName || null;
+  if (desiredRole && cur.role !== desiredRole) patch.role = desiredRole;
 
-  if (Object.keys(patch).length > 0) {
-    await updateDoc(ref, patch);
-  }
+  await updateDoc(ref, patch);
 }

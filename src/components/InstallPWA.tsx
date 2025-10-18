@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 declare global {
   interface Window {
@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-/** Tipo no estndar para TS */
+/** Tipo no estándar para TS */
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
@@ -18,7 +18,7 @@ export default function InstallPWA() {
   const [swReady, setSwReady] = useState<boolean>(() => !!navigator.serviceWorker?.controller);
   const [debug, setDebug] = useState<string>("");
 
-  // Hidrata si el index.html guard el evento antes del mount
+  // Hidrata si el index.html guardó el evento antes del mount
   const hydrateDeferred = () => {
     const d = window.__PWA__?.deferred ?? null;
     if (d && !deferred) setDeferred(d);
@@ -69,27 +69,27 @@ export default function InstallPWA() {
   const canInstall = !!deferred && !installed && !isStandalone && !isIOS;
 
   const reason = useMemo(() => {
-    if (installed) return "Ya est instalada.";
-    if (isStandalone) return "Ya ests usando la app instalada.";
-    if (!swReady) return "El Service Worker an no controla esta pestaa.";
-    return "Esperando a que el navegador permita la instalacin?";
+    if (installed) return "Ya está instalada.";
+    if (isStandalone) return "Ya estás usando la app instalada.";
+    if (!swReady) return "El Service Worker aún no controla esta pestaña.";
+    return "Esperando a que el navegador permita la instalación…";
   }, [installed, isStandalone, swReady]);
 
   const install = async () => {
     const d = deferred || window.__PWA__?.deferred || null;
     if (!d) {
-      alert("Si tu navegador lo permite, usa 'Aadir a pantalla de inicio'.");
+      alert("Si tu navegador lo permite, usa 'Añadir a pantalla de inicio'.");
       return;
     }
     try {
       await d.prompt();
       const { outcome } = await d.userChoice;
       if (outcome === "accepted") {
-        // El evento 'appinstalled' terminar de actualizar estados
+        // El evento 'appinstalled' terminará de actualizar estados
       }
     } catch (e) {
       console.error(e);
-      alert("No se pudo iniciar la instalacin.");
+      alert("No se pudo iniciar la instalación.");
     } finally {
       setDeferred(null);
       if (window.__PWA__) window.__PWA__.deferred = null;
@@ -98,11 +98,11 @@ export default function InstallPWA() {
 
   return (
     <div className="rounded-2xl border bg-white p-4 space-y-2">
-      <div className="font-semibold">Aplicacin</div>
+      <div className="font-semibold">Aplicación</div>
 
       {isIOS ? (
         <p className="text-sm text-slate-600">
-          En iPhone, toca <strong>Compartir</strong> ?' <strong>Aadir a pantalla de inicio</strong>.
+          En iPhone, toca <strong>Compartir</strong> &gt; <strong>Añadir a pantalla de inicio</strong>.
         </p>
       ) : (
         <>
@@ -115,21 +115,21 @@ export default function InstallPWA() {
               className="btn btn-primary px-3 py-2 rounded-xl"
               onClick={install}
               disabled={!canInstall}
-              title={!canInstall ? "El navegador an no expuso el dilogo" : "Instalar app"}
+              title={!canInstall ? "El navegador aún no expuso el diálogo" : "Instalar app"}
             >
               Instalar
             </button>
 
             {!swReady && (
               <span className="text-xs text-slate-500 self-center">
-                Esperando al Service Worker?
+                Esperando al Service Worker…
               </span>
             )}
           </div>
 
           {swReady && !canInstall && !installed && !isStandalone && (
             <div className="text-xs text-slate-500">
-              Si no aparece el dilogo, en Chrome abre el men <b>...</b> y pulsa <b>Instalar app</b>.
+              Si no aparece el diálogo, en Chrome abre el menú <b>...</b> y pulsa <b>Instalar app</b>.
             </div>
           )}
 
