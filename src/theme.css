@@ -1,7 +1,9 @@
 /* src/theme.css */
 /* ============================
-   ATLANTIS INTENSE (Azul + Dorado)
+   ATLANTIS INTENSE (Azul + Dorado) – Patch Artemisa
    ============================ */
+
+/* ===== Tokens base ===== */
 :root{
   /* Azul protagonista */
   --atl-navy:   #0a2740;
@@ -10,15 +12,38 @@
   --atl-ice:    #dbeeff;
 
   /* Dorados */
-  --gold:  #e3c455;
-  --gold-2:#f6e7a3;
+  --gold:   #e3c455;
+  --gold-2: #f6e7a3;
 
   /* Texto/bordes base */
-  --ink:#0f172a;
-  --line:#e5e7eb;
+  --ink:  #0f172a;
+  --line: #e5e7eb;
+
+  /* Compat con tu app (Tailwind var --brand) */
+  --brand:      var(--gold);
+  --brand-600:  #d6b93f;
+  --brand-700:  #c4a82f;
+
+  /* Superficies */
+  --panel:   #ffffff;
+  --panel-2: #fcfdff;
+
+  /* Decorativos */
+  --radius: 18px;
+  --shadow: 0 16px 36px rgba(10,39,64,.10);
 }
 
-/* Superficies “hero” con azul protagonista */
+/* ===== Fondo general suave ===== */
+body,
+.container-app{
+  background:
+    radial-gradient(1200px 700px at 25% -10%, var(--atl-ice) 0%, #fff 50%),
+    linear-gradient(180deg, #fff, #fff);
+  color: var(--ink);
+}
+.container-app{max-width:960px;margin:0 auto;padding:24px 16px}
+
+/* ===== Superficies hero y marca ===== */
 .hero, .brand-surface{
   color: #082233;
   background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
@@ -27,7 +52,60 @@
   box-shadow: 0 28px 48px rgba(0,200,255,.25);
 }
 
-/* Chips / botones acento */
+/* ===== Tarjetas / contenedores ===== */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(16,24,40,.10)}
+.border{ border-color: var(--line) !important; }
+.bg-white, .bg-white\/70 { background: var(--panel) !important; }
+.rounded-2xl{ border-radius: 22px !important; box-shadow: var(--shadow); }
+.backdrop-blur{ background: color-mix(in srgb, var(--panel) 88%, transparent) !important; }
+
+/* ===== Inputs ===== */
+.input{
+  width:100%;
+  border:1px solid #d0d5dd;
+  border-radius:16px;
+  padding:12px 14px;
+  background:#fff;
+}
+.input:focus{
+  outline:0;
+  border-color: var(--atl-azure);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--atl-azure) 30%, transparent);
+}
+
+/* ===== Botones ===== */
+.btn{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:10px 14px;
+  box-shadow: var(--shadow);
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn:active{ transform: translateY(1px) scale(.99); }
+
+/* CTA dorado (sobrescribe .btn-primary global) */
+.btn-primary{
+  background: linear-gradient(90deg, var(--gold), var(--gold-2));
+  color: var(--atl-navy);
+  border:none;
+  border-radius:16px;
+  padding:10px 14px;
+  font-weight:700;
+  box-shadow: 0 10px 22px rgba(212,175,55,.28);
+}
+.btn-ghost{
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.btn-danger{
+  background: #ef4444;
+  color: #fff;
+  border: none;
+}
+.btn-sm{ border-radius: 14px; padding: 6px 10px; }
+
+/* Chips / botones acento (azules) */
 .btn-accent{
   background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
   color: var(--atl-navy);
@@ -37,23 +115,31 @@
   box-shadow: 0 10px 20px rgba(0,200,255,.25);
 }
 
-/* CTA dorado (sobrescribe .btn-primary si deseas esta variante global) */
-.btn-primary{
-  background: linear-gradient(90deg, var(--gold), var(--gold-2));
-  color: var(--atl-navy);
-  border: none;
-  border-radius: 16px;
-  padding: 10px 14px;
-  font-weight: 700;
-  box-shadow: 0 10px 22px rgba(212,175,55,.28);
+/* Pills usadas para filtros (usa tu --brand) */
+.pill,
+.pill[aria-pressed="true"]{
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid var(--brand);
+}
+.pill[aria-pressed="true"]{
+  background: var(--brand);
+  color: #1a1930;
 }
 
-/* Tarjetas / inputs con sombra suave */
-.container-app{max-width:960px;margin:0 auto;padding:24px 16px}
-.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(16,24,40,.10)}
-.input{width:100%;border:1px solid #d0d5dd;border-radius:16px;padding:12px 14px;background:#fff}
+/* Badge utilitaria */
+.badge-accent{
+  background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
+  color: var(--atl-navy);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
 
-/* NAVBAR “dock” translúcido */
+/* Etiquetas de formularios */
+.label{ color:#55627a; font-weight:500; }
+
+/* ===== NAVBAR “dock” translúcido ===== */
 [data-dock]{
   background: rgba(255,255,255,.92);
   border: 1px solid var(--atl-ice);
@@ -65,6 +151,7 @@
 /* Items del dock */
 .dock-item{ color:#475467; transition: transform .08s, color .18s, background .18s; }
 .dock-item .inline-flex{ transition: transform .12s ease, filter .2s ease; }
+.dock-item:hover{ color: var(--atl-navy); }
 .dock-item.is-active{ color: var(--atl-navy); }
 .dock-item.is-active .inline-flex{
   filter: drop-shadow(0 10px 18px rgba(212,175,55,.35));
@@ -81,11 +168,79 @@
   transform: translateY(-12px);
 }
 
-/* Badge utilitaria */
-.badge-accent{
-  background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
-  color: var(--atl-navy);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
+/* ===== Estados/Badges de tu UI ===== */
+.bg-emerald-50{ background: color-mix(in srgb, #10b981 14%, #fff) !important; }
+.bg-amber-50{   background: color-mix(in srgb, #f59e0b 18%, #fff) !important; }
+.bg-rose-50{    background: color-mix(in srgb, #ef4444 14%, #fff) !important; }
+.text-emerald-700{ color:#047857 !important; }
+.text-amber-700{   color:#92400e !important; }
+.text-rose-700{    color:#b91c1c !important; }
+.border-emerald-200{ border-color:#a7f3d0 !important; }
+.border-amber-200{   border-color:#fde68a !important; }
+.border-rose-200{    border-color:#fecaca !important; }
+
+/* ===== Barras/progresos (timeline) ===== */
+.bg-sky-400{ background: var(--atl-azure) !important; }
+
+/* ===== Compatibilidad con usos de --brand en Tailwind ===== */
+[style*="--brand"] *,
+.btn.btn-primary,
+.bg-\[var\(--brand\2c \#f59e0b\)\]{
+  --brand: var(--brand); /* asegura propagación */
 }
+/* ============================
+   Freezeria HUD / Ticket / Finish
+   ============================ */
+
+/* Barra estilo estaciones */
+.freezeria-bar{
+  display:flex; align-items:center; gap:8px;
+  background: linear-gradient(180deg,#f8fafc,#eef2ff);
+  border:1px solid var(--atl-ice,#e5e7eb);
+  border-radius: 16px; padding: 8px 10px;
+  box-shadow: 0 12px 24px rgba(10,39,64,.06), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.station-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 10px; border-radius:999px; font-weight:700;
+  background:#fff; border:1px solid #e5e7eb; font-size:12px;
+  transition:transform .08s, box-shadow .12s;
+}
+.station-chip.k1{box-shadow: 0 6px 14px rgba(0,0,0,.06)}
+.station-chip.is-active{
+  background: linear-gradient(180deg, var(--atl-azure,#00c8ff), var(--atl-quartz,#6ef6e8));
+  color: var(--atl-navy,#0a2740);
+  box-shadow: 0 12px 24px rgba(0,200,255,.22);
+  transform: translateY(-1px);
+}
+.station-dot{width:8px;height:8px;border-radius:999px;background:#94a3b8}
+.station-chip.is-active .station-dot{background: var(--gold,#e3c455)}
+
+/* Botón FINISH grande */
+.btn-finish{
+  margin-left:auto;
+  background: linear-gradient(90deg, var(--gold,#e3c455), var(--gold-2,#f6e7a3));
+  color:#0a2740; border:none; border-radius:999px;
+  padding:8px 16px; font-weight:800;
+  box-shadow: 0 14px 24px rgba(212,175,55,.28);
+}
+
+/* Ticket/orden a la derecha (compacto) */
+.order-ticket{
+  background: #fff;
+  border:1px solid #e5e7eb;
+  border-radius: 14px;
+  padding:10px; width:100%;
+  box-shadow: 0 8px 18px rgba(16,24,40,.08);
+}
+.order-ticket .head{
+  display:flex; align-items:center; justify-content:space-between;
+  font-weight:700; color:#334155; margin-bottom:6px;
+}
+.order-line{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px; border-radius:10px;
+}
+.order-line .dot{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.order-line small{color:#64748b}
+.order-ticket .muted{color:#64748b;font-weight:500}

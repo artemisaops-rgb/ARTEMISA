@@ -10,7 +10,7 @@ import Productos from "@/pages/Productos";
 import Ventas from "@/pages/Ventas";
 import Apertura from "@/pages/Apertura";
 import Compras from "@/pages/Compras";
-import ComprasDetalle from "@/pages/comprasdetalle"; // <- NUEVO
+import ComprasDetalle from "@/pages/ComprasDetalle"; // <- NUEVO
 import Horarios from "@/pages/Horarios";
 import Estadisticas from "@/pages/Estadisticas";
 import AdminSeed from "@/pages/AdminSeed";
@@ -39,11 +39,11 @@ import RoleSwitch from "@/components/RoleSwitch";
 import ModeSwitch from "@/components/ModeSwitch";
 import SupervisionBanner from "@/components/SupervisionBanner";
 
-import "./App.css";
+// ⛔️ Eliminado: import "./App.css";
 
 function Shell() {
   return (
-    <>
+    <div className="app-root">
       <AtlBackground />
       <SupervisionBanner />
       <main className="app-shell">
@@ -55,7 +55,7 @@ function Shell() {
       <ModeSwitch />
 
       <NavBar />
-    </>
+    </div>
   );
 }
 
@@ -83,9 +83,7 @@ export default function App() {
               <Route path="/cliente" element={<ClienteHome />} />
             </Route>
 
-            {/* Staff operacional
-                NOTA: RoleGuard debe negar al Owner en modo monitor.
-                El Owner aquí solo entra cuando activa “Modo Control”. */}
+            {/* Staff operacional */}
             <Route element={<RoleGuard allow={["worker", "owner"]} />}>
               <Route path="/carrito" element={<Carrito />} />
               <Route path="/clientes" element={<Clientes />} />
@@ -93,7 +91,7 @@ export default function App() {
               <Route path="/bodega" element={<Bodega />} />
               <Route path="/productos" element={<Productos />} />
               <Route path="/compras" element={<Compras />} />
-              <Route path="/compras/:purchaseId" element={<ComprasDetalle />} /> {/* <- NUEVA */}
+              <Route path="/compras/:purchaseId" element={<ComprasDetalle />} />
               <Route path="/horarios" element={<Horarios />} />
               <Route path="/apertura" element={<Apertura />} />
               <Route path="/caja" element={<Caja />} />
@@ -101,7 +99,7 @@ export default function App() {
               <Route path="/proveedores" element={<Proveedores />} />
             </Route>
 
-            {/* Solo Owner (panel monitor/contable) */}
+            {/* Solo Owner */}
             <Route element={<RoleGuard allow={["owner"]} />}>
               <Route path="/estadisticas" element={<Estadisticas />} />
               <Route path="/exportes" element={<Exportes />} />

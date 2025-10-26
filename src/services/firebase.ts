@@ -1,6 +1,6 @@
 // src/services/firebase.ts
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, onIdTokenChanged } from "firebase/auth";
 import {
   initializeFirestore,
   getFirestore,
@@ -132,6 +132,38 @@ export function getOrgId(): string {
       ? localStorage.getItem("orgId") ?? undefined
       : undefined;
   return String((lsOrg ?? envOrg ?? "artemisa")).trim() || "artemisa";
+}
+
+/** Permite forzar/guardar la org en localStorage (útil en debug) */
+export function setOrgId(orgId: string) {
+  try { localStorage.setItem("orgId", String(orgId)); } catch {}
+}
+
+/** Rol actual (fallback worker si no hay claim) */
+export function getCurrentRole(): "owner" | "worker" | "client" | string {
+  try { return (localStorage.getItem("myRole") as any) || "worker"; } catch { return "worker"; }
+}
+
+/** Sincroniza orgId y role desde custom claims (orgId/org, role/app_role) */
+export function startAuthClaimsSync() {
+  onIdTokenChanged(auth, async (user) => {
+    if (!user) return;
+    try {
+      const tok = await user.getIdTokenResult(true);
+      const c: any = tok.claims || {};
+      const org = String(c.orgId || c.org || "").trim();
+      const role = String(c.role || c.app_role || "").trim();
+
+      if (org) setOrgId(org);
+      if (role) {
+        try { localStorage.setItem("myRole", role); } catch {}
+        // útil para los estilos por rol en index.css
+        document?.documentElement?.setAttribute?.("data-role", role);
+      }
+    } catch {
+      // no-op
+    }
+  });
 }
 
 // ---- Fechas locales coherentes ----

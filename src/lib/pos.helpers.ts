@@ -469,3 +469,98 @@ export async function deleteOrder(db: Firestore, orderId: string) {
     tx.delete(orderRef);
   });
 }
+
+/* =========================================================
+ * FRAPPE HELPERS (exportados para Canvas / Studio / etc.)
+ * ========================================================= */
+
+// Unidades usadas en recetas / visualización
+export type Unit = "g" | "ml" | "u";
+
+// Item para visualización de vaso/capas
+export type VizItem = { name: string; unit: Unit | string; amount: number };
+
+// Normalización de texto tolerante a encoding chueco
+export function fixText(s?: string): string {
+  if (!s) return "";
+  if (!/[ÃÂâ]/.test(s)) return s.normalize("NFC");
+  try {
+    const bytes = new Uint8Array([...s].map((ch: string) => ch.charCodeAt(0)));
+    const decoded = new TextDecoder("utf-8").decode(bytes);
+    return (/[^\u0000-\u001F]/.test(decoded) ? decoded : s).normalize("NFC");
+  } catch {
+    return s.normalize("NFC");
+  }
+}
+
+// normaliza + quita tildes (con fallback si \p{Diacritic} no está disponible)
+export const normalize = (s: string) => {
+  const base = fixText(s).toLowerCase().normalize("NFD");
+  try {
+    // @ts-ignore - algunos runtimes no soportan \p{Diacritic}
+    return base.replace(/\p{Diacritic}/gu, "");
+  } catch {
+    return base.replace(/[\u0300-\u036f]/g, "");
+  }
+};
+
+type Role = "liquid" | "sparkling" | "ice" | "syrup" | "topping" | "whipped" | "base" | "ignore";
+
+// Clasifica ingrediente (rol + color)
+export function classify(name: string): { role: Role; color: string } {
+  const n = normalize(name);
+  if (/(agitadores|bolsas|filtros?|servilletas|tapas?|toallas|manga t[ée]rmica|pitillos|vaso(?!.*(cart[oó]n|pl[aá]stico|8 oz|12 oz)))/.test(n)) return { role: "ignore", color: "#fff" };
+  if (/(detergente|desinfectante|jab[oó]n)/.test(n)) return { role: "ignore", color: "#fff" };
+  if (/(hielo|ice)/.test(n)) return { role: "ice", color: "#e7f5ff" };
+  if (/(t[oó]nica|tonica|soda|sparkling)/.test(n)) return { role: "sparkling", color: "#cfe9ff" };
+  if (/(espresso|caf[eé]|cold ?brew|concentrado cold brew)/.test(n)) return { role: "liquid", color: "#4a2c21" };
+  if (/(leche|avena)/.test(n)) return { role: "liquid", color: "#f3e6d4" };
+  if (/(milo|cacao|chocolate(?!.*blanco)|negro|oscuro)/.test(n)) return { role: "liquid", color: "#6b3e2e" };
+  if (/(chocolate.*blanco|blanco)/.test(n)) return { role: "liquid", color: "#fff3e0" };
+  if (/(fresa|strawberry|naranja|arándano|arandano)/.test(n)) return { role: "liquid", color: "#ffb3c1" };
+  if (/(vainilla)/.test(n)) return { role: "liquid", color: "#f7e7b6" };
+  if (/(caramelo|syrup|sirope|jarabe|arequipe|dulce de leche|az[uú]car)/.test(n)) return { role: "syrup", color: "#cc8a2e" };
+  if (/(oreo|galleta|cookies?)/.test(n)) return { role: "topping", color: "#2f2f2f" };
+  if (/(crema batida|chantilly|whipped)/.test(n)) return { role: "whipped", color: "#ffffff" };
+  if (/(base frapp[eé]|base frappe|base)/.test(n)) return { role: "base", color: "#dfe7ff" };
+  if (/(agua)/.test(n)) return { role: "liquid", color: "#cfe9ff" };
+  return { role: "liquid", color: "#d9c7a2" };
+}
+
+// Calcula capas y extras para el vaso
+export function asLayers(items: VizItem[]) {
+  const enriched = items
+    .map((it) => ({ ...it, ...classify(it.name) }))
+    .filter((it) => it.role !== "ignore");
+
+  const liquids = enriched.filter(
+    (it) => (it.unit === "ml" || it.unit === "g") && (it.role === "liquid" || it.role === "sparkling")
+  );
+
+  const total = liquids.reduce((a, b) => a + Math.max(0, b.amount || 0), 0) || 1;
+  const layers = liquids.map((it) => ({
+    height: Math.max(0, it.amount || 0) / total,
+    color: classify(it.name).color,
+    label: it.name,
+    sparkling: classify(it.name).role === "sparkling",
+  }));
+
+  const ice = enriched.filter((it) => it.role === "ice");
+  const syrups = enriched.filter((it) => it.role === "syrup");
+  const toppings = enriched.filter((it) => it.role === "topping");
+  const whipped = enriched.filter((it) => it.role === "whipped");
+  const base = enriched.filter((it) => it.role === "base");
+  const sparklingStrength = liquids
+    .filter((l) => classify(l.name).role === "sparkling")
+    .reduce((a, b) => a + (b.amount || 0), 0);
+
+  return {
+    layers,
+    iceCount: ice.length ? Math.max(2, Math.round((ice[0].amount || 0) / 50)) : 0,
+    syrups,
+    toppings,
+    whipped,
+    basePresent: base.length > 0,
+    sparklingStrength,
+  };
+}

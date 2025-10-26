@@ -31,8 +31,8 @@ export type PurchaseDoc = {
   orgId: string;
   status: PurchaseStatus;
   createdAt: any;
-  orderedAt?: any;
-  receivedAt?: any;
+  orderedAt?: any | null;  // 👈 permitir null
+  receivedAt?: any | null;
   updatedAt?: any;
   supplier?: string | null;
   items: PurchaseItem[];
@@ -172,20 +172,24 @@ export async function createPurchaseOrder(
   const total = enriched.reduce((s, i) => s + i.totalCost, 0);
   const status: PurchaseStatus = opts?.status ?? "draft";
 
-  await setDoc(ref, {
+  // ⚠️ NUNCA mandar undefined a Firestore
+  const orderedAt = status === "ordered" ? serverTimestamp() : null;
+
+  const docBody: PurchaseDoc = {
     id: ref.id,
     orgId,
     status,
     createdAt: serverTimestamp(),
-    orderedAt: status === "ordered" ? serverTimestamp() : undefined,
+    orderedAt, // null o Timestamp, nunca undefined
     updatedAt: serverTimestamp(),
     supplier: opts?.supplier ?? null,
     notes: opts?.notes ?? null,
     items: enriched,
     total,
     dateKey: dk,
-  } as PurchaseDoc);
+  };
 
+  await setDoc(ref, docBody as any);
   return ref.id;
 }
 
@@ -238,7 +242,7 @@ export async function upsertDraftForToday(
     // Crear nuevo borrador
     const ref = doc(collection(db, "purchases"));
     const total = enriched.reduce((s, i) => s + i.totalCost, 0);
-    await setDoc(ref, {
+    const body: PurchaseDoc = {
       id: ref.id,
       orgId,
       status: "draft",
@@ -249,7 +253,8 @@ export async function upsertDraftForToday(
       items: enriched,
       total,
       dateKey: dk,
-    } as PurchaseDoc);
+    };
+    await setDoc(ref, body as any);
     return ref.id;
   }
 

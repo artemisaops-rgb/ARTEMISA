@@ -203,3 +203,31 @@ body::before{
 /* 8) Utilidades */
 .hide-scrollbar{ scrollbar-width:none; }
 .hide-scrollbar::-webkit-scrollbar{ display:none; }
+/* 9) Dropdown accesible (CSS-only o controlado) */
+.dropdown{ position:relative; }
+.dropdown > [aria-haspopup="menu"]{ outline:none; }
+
+.dropdown-menu{
+  position:absolute; top:calc(100% + 6px); right:0; min-width:220px;
+  padding:6px; background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+  box-shadow: var(--shadow-md); display:none; z-index:50;
+}
+/* Abre con :focus-within (CSS-only) */
+.dropdown:focus-within .dropdown-menu{ display:block; }
+/* O con clase .open si usas el componente <Dropdown/> controlado */
+.dropdown.open .dropdown-menu{ display:block; }
+
+.dropdown-item{
+  display:block; width:100%; text-align:left; border-radius:10px; padding:.5rem .625rem;
+}
+.dropdown-item:hover{ background:#f1f5f9; }
+
+/* 10) Tabla compacta (se usa en Bodega) */
+.table-compact td,.table-compact th{
+  padding:.5rem .75rem; border-bottom:1px solid #e5e7eb;
+}
+
+/* 11) Estados de botón */
+.btn:disabled, .btn[disabled]{
+  opacity:.55; pointer-events:none; filter:grayscale(.1);
+}

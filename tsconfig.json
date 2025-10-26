@@ -11,9 +11,16 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@contexts/*": ["src/contexts/*"],
+      "@helpers/*": ["src/helpers/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@lib/*": ["src/lib/*"],
+      "@pages/*": ["src/pages/*"],
+      "@services/*": ["src/services/*"]
     },
-    "types": ["vite/client"]   // ojo: sin "node" aquí
+    "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": [
@@ -21,6 +28,8 @@
     "dist",
     "**/*.bak",
     "scripts/**/*",
-    "src/brief.ts"             // este importa firebase-admin: que no lo vea el build
-  ]
+    "src/brief.ts",
+    "../src/**"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
