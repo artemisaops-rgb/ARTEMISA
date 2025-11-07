@@ -72,3 +72,6 @@ export default defineConfig([
 # ARTEMISA
 ARTEMISA
 >>>>>>> 7332ba66a25f5d485bd7062d87625eee35e398a0
+
+## Notas
+- PR de prueba desde feature/nueva-funcionalidad 2025-11-07 04:15
