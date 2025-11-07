@@ -205,6 +205,12 @@ function Cup({ items }: { items: VizItem[] }) {
   const HEIGHT = 260;
   let acc = 0;
 
+  // (FIX TS2367) detectar whipped sin cambiar tipos globales
+  const isWhipped = React.useMemo(
+    () => overlays.some(o => String(o.type) === "whipped"),
+    [overlays]
+  );
+
   return (
     <div className="relative" style={{ width: WIDTH, height: HEIGHT + 36 }}>
       {/* Vaso (rectángulo redondeado con leve trazo) */}
@@ -275,7 +281,7 @@ function Cup({ items }: { items: VizItem[] }) {
       })}
 
       {/* Overlays: whipped (tapita blanca) */}
-      {overlays.some(o => o.type === "whipped") && (
+      {isWhipped && (
         <div
           className="absolute left-1/2 -translate-x-1/2"
           style={{

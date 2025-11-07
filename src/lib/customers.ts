@@ -4,7 +4,6 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   runTransaction,
   collection,
   serverTimestamp,
@@ -47,41 +46,47 @@ function derive(totalStamps: number) {
   return { totalStamps: ts, freeCredits, stampsProgress };
 }
 
-/** Crea/actualiza el doc de cliente */
+const safe = (v: any) => (v === undefined ? null : v);
+
+/**
+ * Crea/actualiza el doc de cliente en /customers/{uid}.
+ * - Idempotente
+ * - Sin undefined
+ * - Usa siempre setDoc(..., { merge: true }) para evitar 400 en updateDoc
+ */
 export async function ensureCustomerDoc(
   db: Firestore,
   uid: string,
   profile?: CustomerProfile
 ): Promise<void> {
-  const orgId = getOrgId();
+  if (!uid) return;
+
+  const orgId = String(getOrgId() || "artemisa");
   const ref = docIn(db, orgId, "customers", uid);
+
+  // Leemos una vez para saber si hay que incluir defaults de creación
   const snap = await getDoc(ref);
+  const isNew = !snap.exists();
 
-  if (!snap.exists()) {
-    const base: CustomerDoc = {
-      uid,
-      email: profile?.email ?? null,
-      displayName: profile?.displayName ?? null,
-      photoURL: profile?.photoURL ?? null,
-      phoneNumber: profile?.phoneNumber ?? null,
-      ...derive(0),
-      isDeleted: false,
-      orgId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    await setDoc(ref, base);
-    return;
-  }
+  const base = {
+    uid,
+    orgId,
+    email: safe(profile?.email ?? null),
+    displayName: safe(profile?.displayName ?? null),
+    photoURL: safe(profile?.photoURL ?? null),
+    phoneNumber: safe(profile?.phoneNumber ?? null),
+    updatedAt: serverTimestamp(),
+    ...(isNew
+      ? {
+          // Defaults solo al crear (para no pisar contadores existentes)
+          ...derive(0),
+          isDeleted: false,
+          createdAt: serverTimestamp(),
+        }
+      : {}),
+  } as Partial<CustomerDoc>;
 
-  const patch: Partial<CustomerDoc> = { updatedAt: serverTimestamp() };
-  if (profile) {
-    if (profile.email !== undefined) patch.email = profile.email;
-    if (profile.displayName !== undefined) patch.displayName = profile.displayName;
-    if (profile.photoURL !== undefined) patch.photoURL = profile.photoURL;
-    if (profile.phoneNumber !== undefined) patch.phoneNumber = profile.phoneNumber;
-  }
-  await updateDoc(ref, patch as any);
+  await setDoc(ref, base, { merge: true });
 }
 
 export async function ensureCustomerProfile(
@@ -107,7 +112,7 @@ export async function redeemOneFreeBeverage(db: Firestore, customerUid: string) 
     if (total < 10) throw new Error("Sin créditos disponibles.");
     const next = derive(total - 10);
 
-    tx.update(custRef, { ...next, updatedAt: serverTimestamp() });
+    tx.set(custRef, { ...next, updatedAt: serverTimestamp() }, { merge: true });
     tx.set(evRef(customerUid), {
       orgId,
       type: "redeem",
@@ -120,7 +125,7 @@ export async function redeemOneFreeBeverage(db: Firestore, customerUid: string) 
 
 /**
  * +1 sello POR COMPRA al marcar delivered (idempotente, excluye staff/owner y auto-compra).
- * Idempotencia sin tocar el doc de la orden (evita romper tus Firestore rules para workers).
+ * Idempotencia sin tocar el doc de la orden (evita romper reglas para workers).
  */
 export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string) {
   const orgId = getOrgId();
@@ -135,7 +140,7 @@ export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string
       staffId?: string | null;
       total?: number;
       status?: string;
-      stampsAwarded?: boolean; // legacy (ya no dependemos de esto)
+      stampsAwarded?: boolean;
     };
 
     // 1) Debe estar entregada
@@ -161,7 +166,7 @@ export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string
 
     // 6) Idempotencia vía evento con ID determinístico (sin escribir en orders)
     const eventsRoot = col(db, orgId, "customers");
-    const evId = `order_${orderId}`; // único por orden
+    const evId = `order_${orderId}`;
     const evRef = doc(collection(eventsRoot, uid, "loyaltyEvents"), evId);
     const evSnap = await tx.get(evRef);
     if (evSnap.exists()) return; // ya otorgado
@@ -170,18 +175,22 @@ export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string
     const custRef = docIn(db, orgId, "customers", uid);
     const csnap = await tx.get(custRef);
     if (!csnap.exists()) {
-      tx.set(custRef, {
-        uid,
-        email: null,
-        displayName: null,
-        photoURL: null,
-        phoneNumber: null,
-        ...derive(0),
-        isDeleted: false,
-        orgId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } as CustomerDoc);
+      tx.set(
+        custRef,
+        {
+          uid,
+          email: null,
+          displayName: null,
+          photoURL: null,
+          phoneNumber: null,
+          ...derive(0),
+          isDeleted: false,
+          orgId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        } as CustomerDoc,
+        { merge: true }
+      );
     }
 
     const cur = (csnap.exists() ? csnap.data() : { totalStamps: 0 }) as any;
@@ -197,6 +206,6 @@ export async function awardStampsOnDeliveredOrder(db: Firestore, orderId: string
       staffId: o.staffId || null,
     });
 
-    tx.update(custRef, { ...next, updatedAt: serverTimestamp() });
+    tx.set(custRef, { ...next, updatedAt: serverTimestamp() }, { merge: true });
   });
 }

@@ -17,6 +17,7 @@
 
   /* Texto/bordes base */
   --ink:  #0f172a;
+  --muted:#64748b;
   --line: #e5e7eb;
 
   /* Compat con tu app (Tailwind var --brand) */
@@ -33,7 +34,16 @@
   --shadow: 0 16px 36px rgba(10,39,64,.10);
 }
 
+/* Dark suave opcional */
+@media (prefers-color-scheme: dark){
+  :root{
+    --panel:#0f172a; --panel-2:#0b1222; --ink:#e6edf7; --muted:#9fb0d4; --line:#21304d;
+    --shadow: 0 16px 36px rgba(0,0,0,.35);
+  }
+}
+
 /* ===== Fondo general suave ===== */
+html, body, #root{height:100%}
 body,
 .container-app{
   background:
@@ -42,6 +52,23 @@ body,
   color: var(--ink);
 }
 .container-app{max-width:960px;margin:0 auto;padding:24px 16px}
+
+/* Velo sutil para todas las páginas (opcional) */
+.app-veil::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(520px 260px at 92% 6%, #9fd8ff22, transparent 60%),
+    radial-gradient(520px 260px at 8% 14%,  #cab2ff26, transparent 60%);
+}
+
+/* Header sticky suave para páginas con editor */
+.app-sticky{
+  position: sticky; top: 56px;
+  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border-bottom: 1px solid var(--line);
+  z-index: 5;
+}
 
 /* ===== Superficies hero y marca ===== */
 .hero, .brand-surface{
@@ -59,19 +86,26 @@ body,
 .rounded-2xl{ border-radius: 22px !important; box-shadow: var(--shadow); }
 .backdrop-blur{ background: color-mix(in srgb, var(--panel) 88%, transparent) !important; }
 
+/* ===== Labels ===== */
+.label{ color:var(--muted); font-weight:500; margin-bottom:6px; font-size:12px; }
+
 /* ===== Inputs ===== */
 .input{
   width:100%;
   border:1px solid #d0d5dd;
   border-radius:16px;
   padding:12px 14px;
-  background:#fff;
+  background:var(--panel);
+  color:var(--ink);
+  transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
+.input::placeholder{ color: color-mix(in srgb, var(--muted) 75%, transparent); }
 .input:focus{
   outline:0;
   border-color: var(--atl-azure);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--atl-azure) 30%, transparent);
 }
+.input:focus-visible{ outline: none; }
 
 /* ===== Botones ===== */
 .btn{
@@ -80,9 +114,12 @@ body,
   border-radius:16px;
   padding:10px 14px;
   box-shadow: var(--shadow);
-  transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+  color: var(--ink);
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
 }
+.btn:hover{ background: color-mix(in srgb, var(--panel) 90%, var(--atl-ice) 10%); }
 .btn:active{ transform: translateY(1px) scale(.99); }
+.btn[disabled]{ opacity:.6; cursor:not-allowed; }
 
 /* CTA dorado (sobrescribe .btn-primary global) */
 .btn-primary{
@@ -94,6 +131,9 @@ body,
   font-weight:700;
   box-shadow: 0 10px 22px rgba(212,175,55,.28);
 }
+.btn-primary:hover{ filter: brightness(1.02); }
+.btn-primary:active{ filter: brightness(.98); }
+
 .btn-ghost{
   background: transparent;
   border: 1px solid var(--line);
@@ -103,7 +143,7 @@ body,
   color: #fff;
   border: none;
 }
-.btn-sm{ border-radius: 14px; padding: 6px 10px; }
+.btn-sm{ border-radius: 14px; padding: 6px 10px; height:32px; }
 
 /* Chips / botones acento (azules) */
 .btn-accent{
@@ -115,16 +155,18 @@ body,
   box-shadow: 0 10px 20px rgba(0,200,255,.25);
 }
 
-/* Pills usadas para filtros (usa tu --brand) */
-.pill,
-.pill[aria-pressed="true"]{
+/* ===== Pills para filtros/categorías ===== */
+.pill{
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--brand);
+  background: var(--panel);
+  font-size: 13px;
 }
-.pill[aria-pressed="true"]{
+.pill--active{
   background: var(--brand);
   color: #1a1930;
+  border-color: var(--brand);
 }
 
 /* Badge utilitaria */
@@ -135,9 +177,6 @@ body,
   padding: 2px 8px;
   font-size: 12px;
 }
-
-/* Etiquetas de formularios */
-.label{ color:#55627a; font-weight:500; }
 
 /* ===== NAVBAR “dock” translúcido ===== */
 [data-dock]{
@@ -183,16 +222,13 @@ body,
 .bg-sky-400{ background: var(--atl-azure) !important; }
 
 /* ===== Compatibilidad con usos de --brand en Tailwind ===== */
-[style*="--brand"] *,
-.btn.btn-primary,
-.bg-\[var\(--brand\2c \#f59e0b\)\]{
-  --brand: var(--brand); /* asegura propagación */
+[style*="--brand"] *,.btn.btn-primary,.bg-\[var\(--brand\2c \#f59e0b\)\]{
+  --brand: var(--brand);
 }
+
 /* ============================
    Freezeria HUD / Ticket / Finish
    ============================ */
-
-/* Barra estilo estaciones */
 .freezeria-bar{
   display:flex; align-items:center; gap:8px;
   background: linear-gradient(180deg,#f8fafc,#eef2ff);
@@ -216,7 +252,6 @@ body,
 .station-dot{width:8px;height:8px;border-radius:999px;background:#94a3b8}
 .station-chip.is-active .station-dot{background: var(--gold,#e3c455)}
 
-/* Botón FINISH grande */
 .btn-finish{
   margin-left:auto;
   background: linear-gradient(90deg, var(--gold,#e3c455), var(--gold-2,#f6e7a3));
@@ -225,10 +260,9 @@ body,
   box-shadow: 0 14px 24px rgba(212,175,55,.28);
 }
 
-/* Ticket/orden a la derecha (compacto) */
 .order-ticket{
-  background: #fff;
-  border:1px solid #e5e7eb;
+  background: var(--panel);
+  border:1px solid var(--line);
   border-radius: 14px;
   padding:10px; width:100%;
   box-shadow: 0 8px 18px rgba(16,24,40,.08);

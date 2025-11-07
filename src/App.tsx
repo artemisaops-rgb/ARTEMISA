@@ -3,6 +3,7 @@ import React, { Suspense } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 
 /* Páginas (carga directa) */
+import ClientStart from "@/pages/ClientStart";
 import Menu from "@/pages/Menu";
 import Carrito from "@/pages/Carrito";
 import Bodega from "@/pages/Bodega";
@@ -10,7 +11,7 @@ import Productos from "@/pages/Productos";
 import Ventas from "@/pages/Ventas";
 import Apertura from "@/pages/Apertura";
 import Compras from "@/pages/Compras";
-import ComprasDetalle from "@/pages/ComprasDetalle"; // <- NUEVO
+import ComprasDetalle from "@/pages/ComprasDetalle";
 import Horarios from "@/pages/Horarios";
 import Estadisticas from "@/pages/Estadisticas";
 import AdminSeed from "@/pages/AdminSeed";
@@ -26,6 +27,12 @@ import Tareas from "@/pages/tareas";
 import Historial from "@/pages/historial";
 import Proveedores from "@/pages/proveedores";
 
+/* Builder/Kiosk */
+import BuilderClient from "@/pages/BuilderClient";
+import Kiosk from "@/pages/Kiosk";
+import BuilderConfigPage from "@/pages/Admin/BuilderConfig";
+import Presets from "@/pages/Presets";
+
 /* Legales */
 import Privacidad from "@/pages/legal/Privacidad";
 import Terminos from "@/pages/legal/Terminos";
@@ -39,9 +46,18 @@ import RoleSwitch from "@/components/RoleSwitch";
 import ModeSwitch from "@/components/ModeSwitch";
 import SupervisionBanner from "@/components/SupervisionBanner";
 
-// ⛔️ Eliminado: import "./App.css";
+/* Para decidir destinos por rol */
+import { useAuth } from "@/contexts/Auth";
+import { useRole } from "@/hooks/useRole";
 
+// Shell con NavBar solo para worker/owner
 function Shell() {
+  const { user } = useAuth();
+  const { role, realRole, loading: roleLoading } = useRole(user?.uid);
+
+  // Mostrar NavBar solo si es owner o worker
+  const showNav = !roleLoading && (realRole === "owner" || role === "worker");
+
   return (
     <div className="app-root">
       <AtlBackground />
@@ -54,9 +70,17 @@ function Shell() {
       <RoleSwitch />
       <ModeSwitch />
 
-      <NavBar />
+      {showNav && <NavBar />}
     </div>
   );
+}
+
+/** Decide home por rol: clientes -> /start, staff/owner -> /menu */
+function HomeDecider() {
+  const { user } = useAuth();
+  const { role, loading } = useRole(user?.uid);
+  if (loading) return <div className="p-6">Cargando…</div>;
+  return <Navigate to={role === "client" ? "/start" : "/menu"} replace />;
 }
 
 export default function App() {
@@ -67,7 +91,9 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/legal/privacidad" element={<Privacidad />} />
         <Route path="/legal/terminos" element={<Terminos />} />
-        <Route path="/" element={<Navigate to="/menu" replace />} />
+
+        {/* Raíz decide según rol */}
+        <Route path="/" element={<HomeDecider />} />
 
         {/* Protegidas */}
         <Route element={<Protected />}>
@@ -76,14 +102,16 @@ export default function App() {
             <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
               <Route path="/menu" element={<Menu />} />
               <Route path="/mas" element={<Mas />} />
+              <Route path="/builder" element={<BuilderClient />} />
             </Route>
 
             {/* Solo Cliente */}
             <Route element={<RoleGuard allow={["client"]} />}>
+              <Route path="/start" element={<ClientStart />} />
               <Route path="/cliente" element={<ClienteHome />} />
             </Route>
 
-            {/* Staff operacional */}
+            {/* Staff */}
             <Route element={<RoleGuard allow={["worker", "owner"]} />}>
               <Route path="/carrito" element={<Carrito />} />
               <Route path="/clientes" element={<Clientes />} />
@@ -97,6 +125,7 @@ export default function App() {
               <Route path="/caja" element={<Caja />} />
               <Route path="/tareas" element={<Tareas />} />
               <Route path="/proveedores" element={<Proveedores />} />
+              <Route path="/kiosk" element={<Kiosk />} />
             </Route>
 
             {/* Solo Owner */}
@@ -107,6 +136,8 @@ export default function App() {
               <Route path="/admin-seed" element={<AdminSeed />} />
               <Route path="/dev-seed" element={<DevSeed />} />
               <Route path="/historial" element={<Historial />} />
+              <Route path="/admin/builder" element={<BuilderConfigPage />} />
+              <Route path="/presets" element={<Presets />} />
             </Route>
 
             {/* Compat */}
@@ -116,7 +147,7 @@ export default function App() {
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/menu" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );

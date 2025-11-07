@@ -1,4 +1,6 @@
-﻿// src/main.tsx
+﻿import "@/styles/freezeria.builder.css";
+import "@/styles/freezeria.theme.css";
+// src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -13,7 +15,8 @@ import { AuthProvider } from "@/contexts/Auth";
 import { PreviewRoleProvider } from "@/contexts/PreviewRole";
 import { OwnerModeProvider } from "@/contexts/OwnerMode";
 
-// 🔒 Sync de claims (orgId/role) — ARRANCA ANTES DE RENDERIZAR
+// 🔒 Auth + claims
+import { ensureAuth } from "@/services/auth.ensure";
 import { startAuthClaimsSync } from "@/services/firebase";
 
 // Evita FOUC de tema por rol: aplica data-role desde LS inmediatamente
@@ -22,8 +25,10 @@ try {
   if (role) document.documentElement.setAttribute("data-role", role);
 } catch { /* no-op */ }
 
-// Inicia el sincronizador de custom claims (orgId / role)
-startAuthClaimsSync();
+// Asegura user (anónimo si hace falta) y luego arranca el sync de custom claims
+ensureAuth()
+  .then(() => startAuthClaimsSync())
+  .catch(console.error);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -51,3 +56,5 @@ if (
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
   });
 }
+
+

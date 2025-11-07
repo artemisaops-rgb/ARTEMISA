@@ -82,20 +82,25 @@ export default function NavBar() {
   const ref = useRef<HTMLElement | null>(null);
   const { user } = useAuth();
   const { role, realRole } = useRole(user?.uid);
-  const { uiRole } = usePreviewRole();
+  const { uiRole } = usePreviewRole(); // se usa para label
   const { mode } = useOwnerMode();
   const { items } = useCart();
+
+  // Mostrar dock SOLO a worker u owner (aunque el owner esté en "preview client", se oculta)
+  const showDock = realRole === "owner" || role === "worker";
 
   const isOwner = realRole === "owner";
   const isOwnerTotal = isOwner && mode === "control";
   const ownerMonitor = isOwner && mode === "monitor";
-
-  const isClient = role === "client" || (isOwner && uiRole === "client");
   const isStaff = role === "worker" || isOwnerTotal;
 
-  const menuLabel = (isClient || ownerMonitor) ? "Carta" : "Menú";
-  const cartCount = useMemo(() => (items || []).reduce((n, it: any) => n + Number(it?.qty || 0), 0), [items]);
+  const menuLabel = (uiRole === "client" || ownerMonitor) ? "Carta" : "Menú";
+  const cartCount = useMemo(
+    () => (items || []).reduce((n, it: any) => n + Number(it?.qty || 0), 0),
+    [items]
+  );
 
+  // Mantener HOOKS siempre llamados: este efecto corre aunque showDock sea false.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -116,34 +121,33 @@ export default function NavBar() {
     };
   }, []);
 
+  // Si no debe mostrarse, devolvemos null (los hooks ya se ejecutaron, no cambia el orden).
+  if (!showDock) return null;
+
   return (
     <>
-      <nav ref={ref} aria-label="Navegación principal" className="atl-dock">
+      <nav ref={ref as any} aria-label="Navegación principal" className="atl-dock">
         <div className="atl-dock__grid">
-          {/* Siempre */}
+          {/* Siempre para staff/owner */}
           <Item to="/menu" label={menuLabel} icon={<IconMenu />} />
 
-          {/* Panel: oculto en vista Cliente */}
-          {!isClient && isOwner && <Item to="/estadisticas" label="Panel" icon={<IconPanel />} />}
+          {/* Panel (owner) */}
+          {isOwner && <Item to="/estadisticas" label="Panel" icon={<IconPanel />} />}
 
-          {/* Operación */}
-          {!isClient && isStaff && <Item to="/carrito" label="Carrito" icon={<IconCart />} badge={cartCount} />}
-          {!isClient && isStaff && <Item to="/bodega" label="Bodega" icon={<IconBodega />} />}
+          {/* Operación (staff/owner) */}
+          {isStaff && <Item to="/carrito" label="Carrito" icon={<IconCart />} badge={cartCount} />}
+          {isStaff && <Item to="/bodega" label="Bodega" icon={<IconBodega />} />}
 
-          {/* Más: oculto en vista Cliente */}
-          {(!isClient && (isStaff || isOwner)) && (
+          {/* Más (staff/owner) */}
+          {(isStaff || isOwner) && (
             <NavLink to="/mas" className={({ isActive }) => `atl-fab-wrap ${isActive ? "is-active" : ""}`} aria-label="Más">
               <span className="atl-fab"><IconPlus /></span>
               <span className="atl-label">Más</span>
             </NavLink>
           )}
 
-          {/* Perfil / Clientes */}
-          {isClient ? (
-            <Item to="/cliente" label="Mi perfil" icon={<IconUser />} />
-          ) : (
-            isStaff && <Item to="/clientes" label="Clientes" icon={<IconUser />} />
-          )}
+          {/* Clientes (staff) */}
+          {isStaff && <Item to="/clientes" label="Clientes" icon={<IconUser />} />}
         </div>
       </nav>
 

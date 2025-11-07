@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, doc, getDocs, orderBy, query as fsQuery,
   setDoc, deleteDoc, addDoc, serverTimestamp, where,
@@ -27,7 +27,7 @@ type Product = { id: string; name: string; category: string; active: boolean; si
 
 type Unit = "g" | "ml" | "u";
 
-/** Secciones de Bodega alineadas con Productos/Receta */
+/** Secciones de Bodega alineadas con Plantillas/Receta */
 type InventorySection =
   | "Comida"
   | "Bebidas"
@@ -41,7 +41,7 @@ type InventoryItem = {
   name: string;
   unit?: Unit;
   costPerUnit?: number;
-  /** NUEVO: sección de Bodega */
+  /** NUEVO: secciÃ³n de Bodega */
   section?: InventorySection;
 };
 
@@ -50,11 +50,11 @@ const CATS = ["frappes", "coldbrew", "bebidas calientes", "comida"] as const;
 type Cat = typeof CATS[number];
 
 const emptyProduct = (): Product => ({ id: "", name: "", category: "frappes", active: true, sizes: [] });
-const catIcon = (c: string) => (c === "frappes" ? "🧋" : c === "coldbrew" ? "🧊" : c === "bebidas calientes" ? "☕" : "🍔");
+const catIcon = (c: string) => (c === "frappes" ? "ðŸ§‹" : c === "coldbrew" ? "ðŸ§Š" : c === "bebidas calientes" ? "â˜•" : "ðŸ”");
 function cls(...xs: Array<string | false | null | undefined>) { return xs.filter(Boolean).join(" "); }
 function fixText(s?: string): string {
   if (!s) return "";
-  if (!/[ÃÂâ]/.test(s)) return s.normalize("NFC");
+  if (!/[ÃƒÃ‚Ã¢]/.test(s)) return s.normalize("NFC");
   try {
     const bytes = new Uint8Array([...s].map((ch) => ch.charCodeAt(0)));
     const decoded = new TextDecoder("utf-8").decode(bytes);
@@ -63,18 +63,18 @@ function fixText(s?: string): string {
 }
 const normalize = (s: string) => fixText(s).toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
-// 👉 helper seguro para números con coma o punto
+// ðŸ‘‰ helper seguro para nÃºmeros con coma o punto
 const parseDecimal = (s: string) => {
   const n = Number(String(s ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : null;
 };
 
-/** Heurística: ¿es maquinaria/equipo (no consumible)? */
+/** HeurÃ­stica: Â¿es maquinaria/equipo (no consumible)? */
 const isEquipmentName = (name: string) =>
-  /(licuadora|blender|batidora|cafetera|espresso|granizadora|m[aá]quina de hielo|freezer|horno|microondas|prensa|molino|grinder|shaker|jarra|vaso medidor|aeropress|v60|chemex|prensa francesa)/i
+  /(licuadora|blender|batidora|cafetera|espresso|granizadora|m[aÃ¡]quina de hielo|freezer|horno|microondas|prensa|molino|grinder|shaker|jarra|vaso medidor|aeropress|v60|chemex|prensa francesa)/i
     .test(normalize(name));
 
-/* ====== Clasificación visual (solo icono; SIN chip de rol para evitar duplicado) ====== */
+/* ====== ClasificaciÃ³n visual (solo icono; SIN chip de rol para evitar duplicado) ====== */
 type Role = "liquid" | "sparkling" | "ice" | "syrup" | "topping" | "whipped" | "base" | "ignore";
 
 const ROLE_COLOR: Record<Role, string> = {
@@ -91,38 +91,38 @@ const ROLE_COLOR: Record<Role, string> = {
 function roleOf(name: string): { role: Role; color: string } {
   const n = normalize(name);
   let role: Role = "liquid";
-  if (/(agitadores|bolsas|filtros?|servilletas|tapas?|toallas|manga t[ée]rmica|pitillos?)/.test(n)) role = "ignore";
-  else if (/(detergente|desinfectante|jab[oó]n)/.test(n)) role = "ignore";
+  if (/(agitadores|bolsas|filtros?|servilletas|tapas?|toallas|manga t[Ã©e]rmica|pitillos?)/.test(n)) role = "ignore";
+  else if (/(detergente|desinfectante|jab[oÃ³]n)/.test(n)) role = "ignore";
   else if (/(hielo|ice)/.test(n)) role = "ice";
-  else if (/(t[oó]nica|tonica|soda|sparkling)/.test(n)) role = "sparkling";
-  else if (/(espresso|caf[eé]|cold ?brew|concentrado cold brew)/.test(n)) role = "liquid";
+  else if (/(t[oÃ³]nica|tonica|soda|sparkling)/.test(n)) role = "sparkling";
+  else if (/(espresso|caf[eÃ©]|cold ?brew|concentrado cold brew)/.test(n)) role = "liquid";
   else if (/(leche(?! en polvo)|avena)/.test(n)) role = "liquid";
   else if (/(milo|cacao|chocolate)/.test(n)) role = "liquid";
   else if (/(vainilla)/.test(n)) role = "liquid";
-  else if (/(caramelo|syrup|sirope|jarabe|arequipe|dulce de leche|az[uú]car)/.test(n)) role = "syrup";
+  else if (/(caramelo|syrup|sirope|jarabe|arequipe|dulce de leche|az[uÃº]car)/.test(n)) role = "syrup";
   else if (/(oreo|galleta|cookies?)/.test(n)) role = "topping";
   else if (/(crema batida|chantilly|whipped)/.test(n)) role = "whipped";
-  else if (/(base frapp[eé]|base frappe|base)/.test(n)) role = "base";
+  else if (/(base frapp[eÃ©]|base frappe|base)/.test(n)) role = "base";
   else if (/(agua)/.test(n)) role = "liquid";
   const color = ROLE_COLOR[role];
   return { role, color };
 }
 
-/** NUEVO: Sección (Bodega) por heurística + fallback al campo item.section */
+/** NUEVO: SecciÃ³n (Bodega) por heurÃ­stica + fallback al campo item.section */
 const sectionOf = (inventory: InventoryItem[], id: string): InventorySection => {
   const it = inventory.find((x) => x.id === id);
   if (!it) return "Otros";
   const nm = normalize(it.name);
   if (/(vaso|tapa|pitillo|sorbete|servilleta|domicilio|envase|caja|empaque)/.test(nm)) return "Desechables";
   if (/(licuadora|blender|batidora|cafetera|espresso|granizadora|horno|microondas|molino|grinder|jarra)/.test(nm)) return "Maquinaria";
-  if (/(cloro|jab[oó]n|desinfect|limpiador|toalla|aseo)/.test(nm)) return "Aseo";
+  if (/(cloro|jab[oÃ³]n|desinfect|limpiador|toalla|aseo)/.test(nm)) return "Aseo";
   if (/(hielo)/.test(nm)) return "Bebidas";
-  if (/(leche|syrup|sirope|jarabe|café|coffee|cold ?brew|agua|crema|condensada)/.test(nm)) return "Bebidas";
+  if (/(leche|syrup|sirope|jarabe|cafÃ©|coffee|cold ?brew|agua|crema|condensada)/.test(nm)) return "Bebidas";
   if (/(galleta|oreo|topping|fruta|milo|cacao|chocolate|granola)/.test(nm)) return "Comida";
   return it.section ?? "Otros";
 };
 
-/* ====== Receta estándar (plantilla por categoría) ====== */
+/* ====== Receta estÃ¡ndar (plantilla por categorÃ­a) ====== */
 type StdRecipe = { name?: string; recipe: Recipe; recipeOrder?: string[] };
 const stdKey = (cat: Cat) => `art:stdRecipe:${cat}`;
 const loadStd = (cat: Cat): StdRecipe => {
@@ -131,7 +131,7 @@ const loadStd = (cat: Cat): StdRecipe => {
 };
 const saveStd = (cat: Cat, r: StdRecipe) => { try { localStorage.setItem(stdKey(cat), JSON.stringify(r)); } catch {} };
 
-/* ====== Firma única de receta (para validar unicidad) ====== */
+/* ====== Firma Ãºnica de receta (para validar unicidad) ====== */
 const recipeSignature = (r: Recipe) =>
   Object.entries(r)
     .map(([id, q]) => [id, Number(q || 0)] as const)
@@ -140,14 +140,14 @@ const recipeSignature = (r: Recipe) =>
     .map(([id, q]) => `${id}:${q}`)
     .join("|");
 
-/* ====== Helpers de costos/márgenes ====== */
+/* ====== Helpers de costos/mÃ¡rgenes ====== */
 function costForSize(s: Size, invMap: Record<string, InventoryItem>): number {
   return Object.entries(s.recipe || {}).reduce((sum, [ing, q]) => sum + (invMap[ing]?.costPerUnit || 0) * Number(q || 0), 0);
 }
 const mapOf = <T extends { id: string }>(arr: T[]) => Object.fromEntries(arr.map((x) => [x.id, x] as const));
 
-/* ================== Página ================== */
-export default function Productos() {
+/* ================== PÃ¡gina ================== */
+export default function Plantillas() {
   const [items, setItems] = useState<Product[]>([]);
   const [cat, setCat] = useState<Cat>(CATS[0]);
   const [open, setOpen] = useState<string | null>(null);
@@ -161,13 +161,13 @@ export default function Productos() {
     return map;
   });
 
-  // 👉 NUEVO: modal y handler para aplicar base por producto
+  // ðŸ‘‰ NUEVO: modal y handler para aplicar base por producto
   const [applyBaseOpen, setApplyBaseOpen] = useState(false);
-  /** Aplica base de la categoría activa a productos seleccionados */
+  /** Aplica base de la categorÃ­a activa a Plantillas seleccionados */
   const applyStdToProducts = (productIds: string[], mode: "replace" | "merge" = "replace") => {
     const tmpl = stdByCat[cat];
     if (!tmpl || !Object.keys(tmpl.recipe || {}).length) {
-      alert(`Primero define la receta estándar para "${cat}".`);
+      alert(`Primero define la receta estÃ¡ndar para "${cat}".`);
       return;
     }
     const order = Array.isArray(tmpl.recipeOrder) && tmpl.recipeOrder.length ? [...tmpl.recipeOrder] : Object.keys(tmpl.recipe || {});
@@ -227,12 +227,12 @@ export default function Productos() {
   useEffect(() => {
     (async () => {
       const orgId = getOrgId();
-      // Productos
+      // Plantillas
       let snap;
       try {
-        snap = await getDocs(fsQuery(collection(db, "products"), where("orgId", "==", orgId), orderBy("name")));
+        snap = await getDocs(fsQuery(collection(db, "presets"), where("orgId", "==", orgId), orderBy("name")));
       } catch {
-        snap = await getDocs(fsQuery(collection(db, "products"), where("orgId", "==", orgId)));
+        snap = await getDocs(fsQuery(collection(db, "presets"), where("orgId", "==", orgId)));
       }
       const list: Product[] = snap.docs.map((d) => {
         const x: any = d.data();
@@ -278,7 +278,7 @@ export default function Productos() {
       });
       arr.sort((a, b) => fixText(a.name).localeCompare(fixText(b.name)));
 
-      // Detectar afectación por cambios de costos
+      // Detectar afectaciÃ³n por cambios de costos
       const nowMap: Record<string, number> = Object.fromEntries(arr.map((x) => [x.id, Number(x.costPerUnit || 0)]));
       const prev = prevInvRef.current;
       if (prev) {
@@ -411,11 +411,11 @@ export default function Productos() {
     download("recetas_ingredientes.csv", csv1);
     download("inventario_no_usado.csv", csv2);
     download("maquinaria_por_producto.csv", csv3);
-    alert(`Auditoría:
-• Ingredientes usados: ${usedIds.size}
-• Ingredientes en bodega sin uso: ${notUsed.length}
-• Registros de maquinaria: ${toolRows.length}
-Se descargaron tres CSV para operación y limpieza.`);
+    alert(`AuditorÃ­a:
+â€¢ Ingredientes usados: ${usedIds.size}
+â€¢ Ingredientes en bodega sin uso: ${notUsed.length}
+â€¢ Registros de maquinaria: ${toolRows.length}
+Se descargaron tres CSV para operaciÃ³n y limpieza.`);
   };
 
   /* ===== Duplicados de receta ===== */
@@ -425,7 +425,7 @@ Se descargaron tres CSV para operación y limpieza.`);
     const pushProd = (p: Product) => {
       (p.sizes || []).forEach((s) => {
         const sig = recipeSignature(s.recipe || {});
-        all.push({ sig, label: `${fixText(p.name)} — ${fixText(s.name)}`, pid: p.id, sid: s.id });
+        all.push({ sig, label: `${fixText(p.name)} â€” ${fixText(s.name)}`, pid: p.id, sid: s.id });
       });
     };
     items.forEach(pushProd);
@@ -443,18 +443,18 @@ Se descargaron tres CSV para operación y limpieza.`);
   /* ===== Validaciones y guardado ===== */
   const validateProduct = (p: Product): string | null => {
     if (!p.name.trim()) return "El producto debe tener nombre.";
-    if (!p.sizes.length) return "Añade al menos un tamaño.";
+    if (!p.sizes.length) return "AÃ±ade al menos un tamaÃ±o.";
     const names = p.sizes.map((s) => s.name.trim().toLowerCase());
     const dup = names.find((n, i) => names.indexOf(n) !== i);
-    if (dup) return `Hay tamaños con el mismo nombre ("${dup}").`;
+    if (dup) return `Hay tamaÃ±os con el mismo nombre ("${dup}").`;
     for (const s of p.sizes) {
-      if (!s.name.trim()) return "Todos los tamaños deben tener nombre.";
-      if (!(s.price > 0)) return `El tamaño "${s.name}" debe tener un precio > 0.`;
+      if (!s.name.trim()) return "Todos los tamaÃ±os deben tener nombre.";
+      if (!(s.price > 0)) return `El tamaÃ±o "${s.name}" debe tener un precio > 0.`;
     }
     return null;
   };
 
-  // ⚙️ Parche: upsert siempre persiste el PRODUCTO MÁS RECIENTE que le pasen
+  // âš™ï¸ Parche: upsert siempre persiste el PRODUCTO MÃS RECIENTE que le pasen
   //            y NO pisa el state con un objeto viejo.
   const upsert = async (p: Product) => {
     const err = validateProduct(p);
@@ -462,8 +462,8 @@ Se descargaron tres CSV para operación y limpieza.`);
 
     const dups = findDuplicatesIncluding(p);
     if (dups.length) {
-      const msg = dups.map(g => " - " + g.map(x => x.label).join("  ⇄  ")).join("\n");
-      const cont = confirm("Atención: hay recetas idénticas entre productos/tamaños diferentes:\n\n" + msg + "\n\n¿Deseas continuar de todas formas?");
+      const msg = dups.map(g => " - " + g.map(x => x.label).join("  â‡„  ")).join("\n");
+      const cont = confirm("AtenciÃ³n: hay recetas idÃ©nticas entre Plantillas/tamaÃ±os diferentes:\n\n" + msg + "\n\nÂ¿Deseas continuar de todas formas?");
       if (!cont) return;
     }
 
@@ -496,14 +496,14 @@ Se descargaron tres CSV para operación y limpieza.`);
       };
       let newId = p.id;
       if (!p.id) {
-        const ref = await addDoc(collection(db, "products"), payload);
+        const ref = await addDoc(collection(db, "presets"), payload);
         newId = ref.id;
       } else {
-        await setDoc(doc(db, "products", p.id), payload, { merge: true });
+        await setDoc(doc(db, "presets", p.id), payload, { merge: true });
       }
       const realId = newId, draftId = p.id;
 
-      // 🩹 No pisar el producto en memoria: solo refrescamos el ID si era nuevo.
+      // ðŸ©¹ No pisar el producto en memoria: solo refrescamos el ID si era nuevo.
       setItems((cur) =>
         cur
           .map((prod) => (prod.id === draftId ? { ...prod, id: realId } : prod))
@@ -517,9 +517,9 @@ Se descargaron tres CSV para operación y limpieza.`);
 
   const remove = async (id: string) => {
     const p = items.find((x) => x.id === id);
-    const sizes = p?.sizes?.map((s) => `• ${fixText(s.name)} ($${Number(s.price||0).toLocaleString()})`).join("\n") || "(sin tamaños)";
-    if (!confirm(`Eliminar producto "${fixText(p?.name || "(sin nombre)")}" y ${p?.sizes?.length || 0} tamaño(s):\n\n${sizes}\n\nEsta acción no se puede deshacer.`)) return;
-    await deleteDoc(doc(db, "products", id));
+    const sizes = p?.sizes?.map((s) => `â€¢ ${fixText(s.name)} ($${Number(s.price||0).toLocaleString()})`).join("\n") || "(sin tamaÃ±os)";
+    if (!confirm(`Eliminar producto "${fixText(p?.name || "(sin nombre)")}" y ${p?.sizes?.length || 0} tamaÃ±o(s):\n\n${sizes}\n\nEsta acciÃ³n no se puede deshacer.`)) return;
+    await deleteDoc(doc(db, "presets", id));
     setItems((cur) => cur.filter((x) => x.id !== id));
   };
 
@@ -530,8 +530,8 @@ Se descargaron tres CSV para operación y limpieza.`);
 
   const applyStdToCategory = () => {
     const tmpl = stdByCat[cat];
-    if (!tmpl || !Object.keys(tmpl.recipe || {}).length) { alert(`Primero define la receta estándar para "${cat}".`); return; }
-    if (!confirm(`Aplicar la receta estándar de "${cat}" a TODOS los tamaños de TODOS los productos de esta categoría? Reemplaza la receta actual.`)) return;
+    if (!tmpl || !Object.keys(tmpl.recipe || {}).length) { alert(`Primero define la receta estÃ¡ndar para "${cat}".`); return; }
+    if (!confirm(`Aplicar la receta estÃ¡ndar de "${cat}" a TODOS los tamaÃ±os de TODOS los Plantillas de esta categorÃ­a? Reemplaza la receta actual.`)) return;
     setItems((cur) =>
       cur.map((p) => p.category !== cat ? p : ({
         ...p,
@@ -544,7 +544,7 @@ Se descargaron tres CSV para operación y limpieza.`);
       }))
     );
     setDirty(true);
-    alert("Base aplicada. Añade el sabor/rasgo de cada producto y marca Producto final OK.");
+    alert("Base aplicada. AÃ±ade el sabor/rasgo de cada producto y marca Producto final OK.");
   };
 
   /* ===== UI ===== */
@@ -580,10 +580,10 @@ Se descargaron tres CSV para operación y limpieza.`);
       `}</style>
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold">Productos</h1>
+        <h1 className="text-2xl font-bold">Plantillas</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs text-slate-600 px-2 py-1 rounded-full border bg-white">
-            {summary.finalOk}/{summary.total} tamaños listos · Base OK: {summary.baseOk} · Vacíos: {summary.empty}
+            {summary.finalOk}/{summary.total} tamaÃ±os listos Â· Base OK: {summary.baseOk} Â· VacÃ­os: {summary.empty}
           </div>
 
           <button className="btn" onClick={() => {
@@ -591,16 +591,16 @@ Se descargaron tres CSV para operación y limpieza.`);
             setItems((cur) => [draft, ...cur]); setOpen(draft.id); setDirty(true);
           }}>Nuevo</button>
 
-          <button className="btn btn-ghost" onClick={openStdForActive}>Receta estándar</button>
-          <button className="btn btn-ghost" onClick={() => setApplyBaseOpen(true)}>Aplicar base a…</button>
-          <button className="btn btn-ghost" onClick={applyStdToCategory}>Aplicar base a categoría</button>
+          <button className="btn btn-ghost" onClick={openStdForActive}>Receta estÃ¡ndar</button>
+          <button className="btn btn-ghost" onClick={() => setApplyBaseOpen(true)}>Aplicar base aâ€¦</button>
+          <button className="btn btn-ghost" onClick={applyStdToCategory}>Aplicar base a categorÃ­a</button>
           <button className="btn btn-ghost" onClick={auditAndExport}>Auditar & Exportar</button>
         </div>
       </div>
 
       {showAffectedBanner && (
         <div className="rounded-xl border bg-amber-50 text-amber-900 px-3 py-2 flex items-center justify-between">
-          <div>Margen cambiado: <b>{affectedCount}</b> tamaño(s) usan ingredientes con costo actualizado.</div>
+          <div>Margen cambiado: <b>{affectedCount}</b> tamaÃ±o(s) usan ingredientes con costo actualizado.</div>
           <div className="flex items-center gap-2">
             <button className="btn btn-ghost" onClick={() => setShowAffectedBanner(false)}>Ocultar</button>
             <button className="btn" onClick={refreshInventory}>Recalcular ahora</button>
@@ -608,7 +608,7 @@ Se descargaron tres CSV para operación y limpieza.`);
         </div>
       )}
 
-      {/* Chips de categoría */}
+      {/* Chips de categorÃ­a */}
       <div className="flex gap-2 overflow-auto pb-1">
         {(CATS as readonly Cat[]).map((c) => (
           <motion.button
@@ -634,7 +634,7 @@ Se descargaron tres CSV para operación y limpieza.`);
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-lg shrink-0">{catIcon(p.category)}</div>
                 <div className="min-w-0">
                   <div className="font-medium truncate">{fixText(p.name) || "(sin nombre)"}</div>
-                  <div className="text-xs text-slate-500 truncate">cat: <span className="capitalize">{p.category}</span> · {p.active ? "Activo" : "Inactivo"} · {p.sizes.length} tamaño(s)</div>
+                  <div className="text-xs text-slate-500 truncate">cat: <span className="capitalize">{p.category}</span> Â· {p.active ? "Activo" : "Inactivo"} Â· {p.sizes.length} tamaÃ±o(s)</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -649,7 +649,7 @@ Se descargaron tres CSV para operación y limpieza.`);
                 isSizesOpen={isSizesOpen}
                 toggleSizes={toggleSizes}
                 setItems={(fn) => { setDirty(true); setItems(fn); }}
-                onCancel={() => { if (dirty && !confirm("Hay cambios sin guardar. ¿Descartar?")) return; setOpen(null); setDirty(false); }}
+                onCancel={() => { if (dirty && !confirm("Hay cambios sin guardar. Â¿Descartar?")) return; setOpen(null); setDirty(false); }}
                 onSave={(prod) => upsert(prod)}
                 saving={saving}
                 inventory={inv}
@@ -660,7 +660,7 @@ Se descargaron tres CSV para operación y limpieza.`);
         ))}
       </ul>
 
-      {/* Modal Receta Estándar */}
+      {/* Modal Receta EstÃ¡ndar */}
       <StdRecipeModal
         open={stdOpen}
         onClose={() => setStdOpen(false)}
@@ -670,7 +670,7 @@ Se descargaron tres CSV para operación y limpieza.`);
         category={cat}
       />
 
-      {/* NUEVO: Modal para aplicar base a productos */}
+      {/* NUEVO: Modal para aplicar base a Plantillas */}
       <ApplyBaseModal
         open={applyBaseOpen}
         onClose={() => setApplyBaseOpen(false)}
@@ -695,10 +695,10 @@ function ProductEditor({
   inventory: InventoryItem[];
   stdForCategory: StdRecipe;
 }) {
-  // Modal por tamaño
+  // Modal por tamaÃ±o
   const [openSizeId, setOpenSizeId] = useState<string | null>(null);
 
-  // 🔧 Cabecera minimalista con toggle para editar datos
+  // ðŸ”§ Cabecera minimalista con toggle para editar datos
   const [editMeta, setEditMeta] = useState(false);
 
   useEffect(() => {
@@ -737,7 +737,7 @@ function ProductEditor({
         </div>
       </div>
 
-      {/* Panel de edición de nombre/categoría (colapsable y minimal) */}
+      {/* Panel de ediciÃ³n de nombre/categorÃ­a (colapsable y minimal) */}
       {editMeta && (
         <div className="rounded-xl border bg-white p-3 grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-2">
           <input
@@ -756,10 +756,10 @@ function ProductEditor({
         </div>
       )}
 
-      {/* Tamaños (lista compacta, una fila + CTA Editar) */}
+      {/* TamaÃ±os (lista compacta, una fila + CTA Editar) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="font-medium">Tamaños</div>
+          <div className="font-medium">TamaÃ±os</div>
           <div className="flex gap-2">
             <button className="btn btn-ghost" onClick={() => toggleSizes(p.id)}>{isSizesOpen(p.id) ? "Ocultar" : "Mostrar"}</button>
             <button
@@ -768,7 +768,7 @@ function ProductEditor({
                 const s: Size = { id: crypto.randomUUID(), name: "nuevo", price: 0, recipe: {}, notes: "", checks: {}, tools: [] };
                 setItems((cur) => cur.map((x) => (x.id === p.id ? { ...x, sizes: [...x.sizes, s] } : x)));
               }}
-            >Añadir tamaño</button>
+            >AÃ±adir tamaÃ±o</button>
           </div>
         </div>
 
@@ -776,16 +776,16 @@ function ProductEditor({
           <div className="flex flex-wrap gap-2">
             {p.sizes.map((s) => (
               <span key={s.id} className="px-2 py-1 rounded-full border text-xs text-slate-700 bg-white" title={`Precio: $${Number(s.price || 0).toLocaleString()}`}>
-                {fixText(s.name)} · ${Number(s.price || 0).toLocaleString()}
+                {fixText(s.name)} Â· ${Number(s.price || 0).toLocaleString()}
               </span>
             ))}
-            {p.sizes.length === 0 && <span className="text-sm text-slate-500">Sin tamaños.</span>}
+            {p.sizes.length === 0 && <span className="text-sm text-slate-500">Sin tamaÃ±os.</span>}
           </div>
         )}
 
         {isSizesOpen(p.id) && (
           <div className="space-y-2">
-            {p.sizes.length === 0 && <div className="text-sm text-slate-500">Sin tamaños.</div>}
+            {p.sizes.length === 0 && <div className="text-sm text-slate-500">Sin tamaÃ±os.</div>}
             {p.sizes.map((s) => (
               <SizeRow
                 key={s.id}
@@ -796,13 +796,13 @@ function ProductEditor({
                 setItems={setItems}
                 onOpen={() => setOpenSizeId(s.id)}
                 onRemove={() => {
-                  if (!confirm(`Eliminar tamaño "${fixText(s.name)}"?`)) return;
+                  if (!confirm(`Eliminar tamaÃ±o "${fixText(s.name)}"?`)) return;
                   setItems(cur => cur.map(prod => prod.id !== p.id ? prod : ({ ...prod, sizes: prod.sizes.filter(x => x.id !== s.id) })));
                 }}
               />
             ))}
 
-            {/* Modal unificado para edición del tamaño */}
+            {/* Modal unificado para ediciÃ³n del tamaÃ±o */}
             {p.sizes.map((s) => (
               <SizeModal
                 key={"modal:"+s.id}
@@ -823,7 +823,7 @@ function ProductEditor({
   );
 }
 
-/* =============== Fila compacta de tamaño =============== */
+/* =============== Fila compacta de tamaÃ±o =============== */
 function SizeRow({
   p, s, inventory, stdForCategory, setItems, onOpen, onRemove,
 }: {
@@ -860,7 +860,7 @@ function SizeRow({
 
       {/* Costo/Margen */}
       <div className="text-sm text-slate-600 text-right">
-        Costo <b>${recipeCost.toLocaleString()}</b> · Margen{" "}
+        Costo <b>${recipeCost.toLocaleString()}</b> Â· Margen{" "}
         <b className={cls(margin < 0 ? "text-red-600" : "text-emerald-600")}>
           ${margin.toLocaleString()} ({pct.toFixed(1)}%)
         </b>
@@ -869,24 +869,24 @@ function SizeRow({
       {/* Estado comprimido */}
       <div className="flex items-center justify-end gap-1">
         <span className={cls("px-2 py-1 rounded-full border text-xs", baseOk ? "border-emerald-500 text-emerald-700 bg-emerald-50" : "border-amber-500 text-amber-700 bg-amber-50")}>
-          Base {baseOk ? "OK" : "—"}
+          Base {baseOk ? "OK" : "â€”"}
         </span>
         <span className="px-2 py-1 rounded-full border text-xs text-slate-600">{completed}/{total || 0}</span>
         <span className={cls("px-2 py-1 rounded-full border text-xs", s.checks?.finalOk ? "border-indigo-500 text-indigo-700 bg-indigo-50" : "border-slate-300 text-slate-600 bg-white")}>
-          Final {s.checks?.finalOk ? "OK" : "—"}
+          Final {s.checks?.finalOk ? "OK" : "â€”"}
         </span>
       </div>
 
       {/* Acciones: 1 CTA visible + eliminar */}
       <div className="flex items-center justify-end gap-2">
         <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="btn btn-primary btn-sm" onClick={onOpen}>Editar</motion.button>
-        <button className="btn btn-ghost btn-sm" onClick={onRemove} title="Eliminar tamaño">Eliminar</button>
+        <button className="btn btn-ghost btn-sm" onClick={onRemove} title="Eliminar tamaÃ±o">Eliminar</button>
       </div>
     </div>
   );
 }
 
-/* =============== Modal unificado de tamaño =============== */
+/* =============== Modal unificado de tamaÃ±o =============== */
 function SizeModal({
   open, onClose, p, s, inventory, setItems, stdForCategory, onSaved,
 }: {
@@ -921,7 +921,7 @@ function SizeModal({
 
   const invMap = useMemo(() => mapOf(inventory), [inventory]);
 
-  // 👉 overrides locales para reflejar cambios al instante en el modal
+  // ðŸ‘‰ overrides locales para reflejar cambios al instante en el modal
   const [unitEdits, setUnitEdits] = useState<Record<string, Unit>>({});
   const [cpuEdits, setCpuEdits] = useState<Record<string, number>>({});
 
@@ -1016,7 +1016,7 @@ function SizeModal({
     return { name: nm, unit: unitOf(ing), amount: Number(amount || 0), type: toStudioKind(role) };
   });
 
-  // 🔧 Guarda SOLO lo que realmente quedó en state y persiste ese mismo objeto.
+  // ðŸ”§ Guarda SOLO lo que realmente quedÃ³ en state y persiste ese mismo objeto.
   const saveAndClose = () => {
     const willBaseOk = Object.keys(stdForCategory?.recipe || {}).every((id)=>Number((local.recipe||{})[id]||0) > 0);
     const next: Size = { ...local, checks: { ...(local.checks||{}), baseOk: willBaseOk } };
@@ -1046,17 +1046,17 @@ function SizeModal({
         >
           {/* Header del modal */}
           <div className="px-4 py-3 border-b flex items-center gap-2">
-            <div className="font-medium truncate">{fixText(p.name)} — <b>{fixText(local.name)}</b></div>
+            <div className="font-medium truncate">{fixText(p.name)} â€” <b>{fixText(local.name)}</b></div>
             <div className="ml-auto flex items-center gap-2 text-xs">
               <span className={cls("px-2 py-1 rounded-full border", baseOk ? "border-emerald-500 text-emerald-700 bg-emerald-50" : "border-amber-500 text-amber-700 bg-amber-50")}>
-                Base {baseOk ? "OK" : "—"}
+                Base {baseOk ? "OK" : "â€”"}
               </span>
               <span className="px-2 py-1 rounded-full border text-slate-600">{completed}/{total || 0}</span>
               <span className={cls("px-2 py-1 rounded-full border", local.checks?.finalOk ? "border-indigo-500 text-indigo-700 bg-indigo-50" : "border-slate-300 text-slate-600 bg-white")}>
-                Final {local.checks?.finalOk ? "OK" : "—"}
+                Final {local.checks?.finalOk ? "OK" : "â€”"}
               </span>
               <span className="pl-2 text-slate-600 hidden md:inline">
-                Costo <b>${recipeCost.toLocaleString()}</b> · Margen{" "}
+                Costo <b>${recipeCost.toLocaleString()}</b> Â· Margen{" "}
                 <b className={cls(margin < 0 ? "text-red-600" : "text-emerald-600")}>${margin.toLocaleString()} ({pct.toFixed(1)}%)</b>
               </span>
             </div>
@@ -1096,7 +1096,7 @@ function SizeModal({
                 onReorder={onReorder}
                 inventory={inventory}
                 onQuickAdd={(id, qty) => setAmount(id, Math.max(0, qty))}
-                /* 👇 NUEVO: permite editar unidad y costo por unidad desde la receta */
+                /* ðŸ‘‡ NUEVO: permite editar unidad y costo por unidad desde la receta */
                 editableInventory
                 onUnitChange={saveUnit}
                 onCpuChange={saveCpu}
@@ -1157,7 +1157,7 @@ function SizeModal({
                     setCopyOpen(true);
                   }}
                 >
-                  Guardar y copiar a…
+                  Guardar y copiar aâ€¦
                 </button>
               )}
             </div>
@@ -1168,7 +1168,7 @@ function SizeModal({
             </div>
           </div>
 
-          {/* Copiar a tamaños — COPIA EXACTA */}
+          {/* Copiar a tamaÃ±os â€” COPIA EXACTA */}
           <CopyToSizesModal
             open={copyOpen}
             onClose={()=>setCopyOpen(false)}
@@ -1229,19 +1229,19 @@ function ToolsInline({
             </tr>
           ))}
           {equipment.length===0 && (
-            <tr><td className="px-3 py-4 text-sm text-slate-500" colSpan={2}>No se detectó maquinaria en bodega.</td></tr>
+            <tr><td className="px-3 py-4 text-sm text-slate-500" colSpan={2}>No se detectÃ³ maquinaria en bodega.</td></tr>
           )}
         </tbody>
       </table>
 
       <div className="p-2 border-t flex justify-end">
-        <button className="btn btn-primary btn-sm" onClick={()=>onChange([...sel])}>Guardar selección</button>
+        <button className="btn btn-primary btn-sm" onClick={()=>onChange([...sel])}>Guardar selecciÃ³n</button>
       </div>
     </div>
   );
 }
 
-/* =============== Chip de SECCIÓN editable =============== */
+/* =============== Chip de SECCIÃ“N editable =============== */
 function SectionChip({
   ingId, inventory,
 }: {
@@ -1259,7 +1259,7 @@ function SectionChip({
       await setDoc(doc(db, "inventoryItems", ingId), { orgId: getOrgId(), section: s }, { merge: true });
     } catch (e) {
       console.error(e);
-      alert("No se pudo guardar la sección. Revisa permisos/reglas.");
+      alert("No se pudo guardar la secciÃ³n. Revisa permisos/reglas.");
     }
   };
 
@@ -1269,9 +1269,9 @@ function SectionChip({
         type="button"
         className="px-2 py-[2px] rounded-full text-[11px] border bg-white hover:bg-neutral-50"
         onClick={() => setOpen((v) => !v)}
-        title="Editar sección de bodega"
+        title="Editar secciÃ³n de bodega"
       >
-        {cur} ✎
+        {cur} âœŽ
       </button>
       {open && (
         <div className="absolute z-20 mt-1 w-40 rounded-xl border bg-white shadow-lg p-1">
@@ -1316,7 +1316,7 @@ function RecipeTable({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const getDisplay = (id: string, amount: number) => (id in drafts ? drafts[id] : String(amount ?? 0));
 
-  // NUEVO: edición puntual de $/u activada por el botón de lápiz
+  // NUEVO: ediciÃ³n puntual de $/u activada por el botÃ³n de lÃ¡piz
   const [draftCpu, setDraftCpu] = useState<Record<string, string>>({});
   const [editCpuFor, setEditCpuFor] = useState<string | null>(null);
   const getCpuDisplay = (id: string) => (id in draftCpu ? draftCpu[id] : String(cpuOf(id) ?? 0));
@@ -1327,7 +1327,7 @@ function RecipeTable({
   const byName = (txt: string) => inventory.find(i => normalize(i.name) === normalize(txt) || i.id === txt);
   const units = (id: string) => (inventory.find(i => i.id === id)?.unit ?? "u");
 
-  // "3 toppings" -> usa ítem topping
+  // "3 toppings" -> usa Ã­tem topping
   const parseToppings = (txt: string): number | null => {
     const m = txt.trim().match(/^(\d+(?:[.,]\d+)?)\s*(topping|toppings?|topin(?:g)?s?)$/i);
     if (!m) return null;
@@ -1348,7 +1348,7 @@ function RecipeTable({
     >
       <div className="px-3 py-2 flex items-center justify-between">
         <div className="font-medium text-sm">Receta</div>
-        <div className="text-xs text-slate-500">Arrastra ⋮ para reordenar</div>
+        <div className="text-xs text-slate-500">Arrastra â‹® para reordenar</div>
       </div>
 
       {/* Quick add inline */}
@@ -1356,7 +1356,7 @@ function RecipeTable({
         <input
           list="inv-list"
           className="input"
-          placeholder="Añadir ingrediente… (escribe y elige)"
+          placeholder="AÃ±adir ingredienteâ€¦ (escribe y elige)"
           value={qaText}
           onChange={(e) => setQaText(e.target.value)}
         />
@@ -1375,24 +1375,24 @@ function RecipeTable({
             const tops = parseToppings(qaText);
             if (tops !== null) {
               const it = findToppingItem();
-              if (!it) return alert("No hay un ítem de bodega para 'topping'.");
+              if (!it) return alert("No hay un Ã­tem de bodega para 'topping'.");
               onQuickAdd(it.id, Math.max(0, tops));
               setQaText(""); setQaQty(units(it.id) === "u" ? "1" : "1");
               return;
             }
             const it = byName(qaText);
-            if (!it) return alert("Selecciona un ingrediente válido de la lista.");
+            if (!it) return alert("Selecciona un ingrediente vÃ¡lido de la lista.");
             const q = Number(qaQty || 0);
             onQuickAdd(it.id, Math.max(0, q));
             setQaText(""); setQaQty(units(it.id) === "u" ? "1" : "1");
           }}
-        >Añadir</button>
+        >AÃ±adir</button>
         <datalist id="inv-list">
           {inventory.map(i => <option key={i.id} value={fixText(i.name)} />)}
         </datalist>
       </div>
 
-      {rows.length === 0 && <div className="px-3 py-4 text-sm text-slate-500">Sin ingredientes todavía.</div>}
+      {rows.length === 0 && <div className="px-3 py-4 text-sm text-slate-500">Sin ingredientes todavÃ­a.</div>}
 
       <ul className="divide-y">
         {rows.map(([ing, amount], idx) => {
@@ -1405,12 +1405,12 @@ function RecipeTable({
           const rowCost = Math.max(0, effCpu * Number(amount || 0));
 
           const icon =
-            role === "liquid" ? "💧" :
-            role === "sparkling" ? "🥂" :
-            role === "syrup" ? "🧪" :
-            role === "ice" ? "🧊" :
-            role === "topping" ? "🍪" :
-            role === "whipped" ? "🍦" : "🧋";
+            role === "liquid" ? "ðŸ’§" :
+            role === "sparkling" ? "ðŸ¥‚" :
+            role === "syrup" ? "ðŸ§ª" :
+            role === "ice" ? "ðŸ§Š" :
+            role === "topping" ? "ðŸª" :
+            role === "whipped" ? "ðŸ¦" : "ðŸ§‹";
           const tint = `${color}${color.length === 7 ? "14" : ""}`;
           const isOver = overIndex === idx;
 
@@ -1431,7 +1431,7 @@ function RecipeTable({
               onDragEnd={() => { setDragId(null); setOverIndex(null); }}
               onDragOver={(e) => { if (!dragId) return; e.preventDefault(); setOverIndex(idx); }}
             >
-              <div className="cursor-grab text-slate-400 select-none" title="Arrastra">⋮⋮</div>
+              <div className="cursor-grab text-slate-400 select-none" title="Arrastra">â‹®â‹®</div>
 
               {/* Nombre (no se tapa) */}
               <div className="min-w-0 flex items-center gap-2">
@@ -1444,7 +1444,7 @@ function RecipeTable({
 
               {/* Cantidad + unidad (compacto) */}
               <div className="flex items-center gap-1 justify-end shrink-0">
-                <button className="btn btn-sm" onClick={() => setAmount(ing, Math.max(0, Number(amount || 0) - 1))} title="Disminuir cantidad">–</button>
+                <button className="btn btn-sm" onClick={() => setAmount(ing, Math.max(0, Number(amount || 0) - 1))} title="Disminuir cantidad">â€“</button>
                 <label htmlFor={inputId} className="sr-only">Cantidad para {nm}</label>
                 <input
                   id={inputId}
@@ -1486,7 +1486,7 @@ function RecipeTable({
                 <button className="btn btn-sm" onClick={() => setAmount(ing, Number(amount || 0) + 1)} title="Aumentar cantidad">+</button>
               </div>
 
-              {/* SOLO precio final + botón editar */}
+              {/* SOLO precio final + botÃ³n editar */}
               <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                 {editCpuFor === ing ? (
                   <>
@@ -1528,7 +1528,7 @@ function RecipeTable({
                       onClick={() => { setEditCpuFor(null); setDraftCpu((m) => { const { [ing]: _omit, ...rest } = m; return rest; }); }}
                       title="Cancelar"
                     >
-                      ✕
+                      âœ•
                     </button>
                   </>
                 ) : (
@@ -1542,13 +1542,13 @@ function RecipeTable({
                         setDraftCpu((m) => ({ ...m, [ing]: String(cpuOf(ing) ?? 0) }));
                       }}
                     >
-                      ✎
+                      âœŽ
                     </button>
                   </>
                 )}
               </div>
 
-              <button className="btn btn-ghost btn-sm" onClick={() => onRemove(ing)} title="Quitar">✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => onRemove(ing)} title="Quitar">âœ•</button>
             </li>
           );
         })}
@@ -1557,7 +1557,7 @@ function RecipeTable({
   );
 }
 
-/* ================= Modal Receta Estándar ================= */
+/* ================= Modal Receta EstÃ¡ndar ================= */
 function StdRecipeModal({
   open, onClose, value, onChange, inventory, category,
 }: {
@@ -1609,7 +1609,7 @@ function StdRecipeModal({
         <motion.div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl border p-4"
           initial={{ y: 30, scale: 0.98 }} animate={{ y: 0, scale: 1, transition: { type: "spring", damping: 22, stiffness: 220 }}} exit={{ y: 20, opacity: 0 }}>
           <div className="flex items-center justify-between">
-            <div className="font-semibold">Receta estándar — <span className="capitalize">{category}</span></div>
+            <div className="font-semibold">Receta estÃ¡ndar â€” <span className="capitalize">{category}</span></div>
             <div className="flex items-center gap-2">
               <button className="btn btn-primary" onClick={() => { onChange(local); onClose(); }}>Guardar</button>
             </div>
@@ -1643,7 +1643,7 @@ function StdRecipeModal({
   );
 }
 
-/* =============== NUEVO: Modal Aplicar base a productos =============== */
+/* =============== NUEVO: Modal Aplicar base a Plantillas =============== */
 function ApplyBaseModal({
   open, onClose, products, onApply,
 }: {
@@ -1680,7 +1680,7 @@ function ApplyBaseModal({
           exit={{ y: 20, opacity: 0 }}
         >
           <div className="flex items-center justify-between gap-2">
-            <div className="font-semibold">Aplicar base a productos</div>
+            <div className="font-semibold">Aplicar base a Plantillas</div>
             <div className="flex items-center gap-2">
               <button className="btn btn-ghost" onClick={() => setRows(r => r.map(x => ({ ...x, selected: true })))}>Todo</button>
               <button className="btn btn-ghost" onClick={() => setRows(r => r.map(x => ({ ...x, selected: false })))}>Nada</button>
@@ -1696,7 +1696,7 @@ function ApplyBaseModal({
           </div>
 
           <p className="text-xs text-slate-600 mt-1">
-            Se aplicará la <b>receta base</b> de la categoría actual a <b>todos los tamaños</b> de cada producto seleccionado.
+            Se aplicarÃ¡ la <b>receta base</b> de la categorÃ­a actual a <b>todos los tamaÃ±os</b> de cada producto seleccionado.
           </p>
 
           <div className="mt-3 rounded-xl border overflow-hidden">
@@ -1705,7 +1705,7 @@ function ApplyBaseModal({
                 <tr>
                   <th className="px-3 py-2 text-left">Aplicar</th>
                   <th className="px-3 py-2 text-left">Producto</th>
-                  <th className="px-3 py-2 text-right"># Tamaños</th>
+                  <th className="px-3 py-2 text-right"># TamaÃ±os</th>
                 </tr>
               </thead>
               <tbody>
@@ -1723,7 +1723,7 @@ function ApplyBaseModal({
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td className="px-3 py-4 text-slate-500" colSpan={3}>No hay productos en esta categoría.</td></tr>
+                  <tr><td className="px-3 py-4 text-slate-500" colSpan={3}>No hay Plantillas en esta categorÃ­a.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1751,7 +1751,7 @@ function ApplyBaseModal({
   );
 }
 
-/* =============== Copiar a tamaños — COPIA EXACTA =============== */
+/* =============== Copiar a tamaÃ±os â€” COPIA EXACTA =============== */
 function CopyToSizesModal({
   open, onClose, product, source, onApply,
 }: {
@@ -1786,7 +1786,7 @@ function CopyToSizesModal({
           initial={{ y: 30, scale: 0.98 }} animate={{ y: 0, scale: 1, transition: { type: "spring", damping: 22, stiffness: 220 } }} exit={{ y: 20, opacity: 0 }}>
 
           <div className="flex items-center justify-between">
-            <div className="font-semibold">Copiar receta — Origen: <b>{fixText(source.name)}</b></div>
+            <div className="font-semibold">Copiar receta â€” Origen: <b>{fixText(source.name)}</b></div>
             <div className="flex items-center gap-2">
               <button className="btn btn-ghost" onClick={() => setRows(r => r.map(x => ({ ...x, selected: true })))}>Todo</button>
               <button className="btn btn-ghost" onClick={() => setRows(r => r.map(x => ({ ...x, selected: false })))}>Nada</button>
@@ -1811,8 +1811,8 @@ function CopyToSizesModal({
           </div>
 
           <p className="text-xs text-slate-600 mt-2">
-            Se copiarán <b>exactamente los mismos ingredientes</b> y <b>el mismo orden</b> del tamaño <b>{fixText(source.name)}</b>.
-            Luego puedes ajustar cantidades manualmente en cada tamaño.
+            Se copiarÃ¡n <b>exactamente los mismos ingredientes</b> y <b>el mismo orden</b> del tamaÃ±o <b>{fixText(source.name)}</b>.
+            Luego puedes ajustar cantidades manualmente en cada tamaÃ±o.
           </p>
 
           <div className="mt-3 overflow-auto">
@@ -1820,7 +1820,7 @@ function CopyToSizesModal({
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left">Copiar</th>
-                  <th className="px-3 py-2 text-left">Tamaño</th>
+                  <th className="px-3 py-2 text-left">TamaÃ±o</th>
                   <th className="px-3 py-2 text-right">Precio</th>
                 </tr>
               </thead>
@@ -1851,3 +1851,4 @@ function CopyToSizesModal({
     </AnimatePresence>
   );
 }
+

@@ -1,16 +1,11 @@
 // src/lib/orders.ts
 /**
  * Utilidades para órdenes:
- * - Tipos y helpers de escritura.
- * - Crear orden (status:"pending") con COGS calculado.
- * - Marcar entregada (status:"delivered") con deliveredAt.
- * - Cancelar (status:"canceled") con revert de inventario.
+ * - Crear orden (status:"pending") sin escribir undefined.
+ * - Marcar entregada (status:"delivered").
+ * - Cancelar (reabre stock con movimiento 'revert').
  *
- * Notas:
- * - Reglas: crear la orden (staff), marcar delivered (worker con campos inmutables), cancelar (owner).
- * - Caja calcula el efectivo esperado desde orders.deliveredAt + payMethod; aquí NO generamos cashMovements.
- * - COGS se calcula leyendo costPerUnit de inventoryItems.
- * - La CF onOrderCreate hace el consumo de stock al crear la orden (kardex type:"consume", reason:"sale").
+ * Compatibilidad: incluye createOrderFromBuilder para el flujo del Builder.
  */
 
 import type { Firestore } from "firebase/firestore";
@@ -23,35 +18,36 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { getOrgId, toDateKey } from "@/services/firebase";
+import { db as defaultDb, getOrgId, toDateKey } from "@/services/firebase";
 import { awardStampsOnDeliveredOrder } from "@/lib/customers";
 
 export type PayMethod = "cash" | "qr" | "card" | "other";
 export type OrderStatus = "pending" | "delivered" | "canceled";
 
-/** Ítem a consumir directamente desde inventario (compatible con tu CF onOrderCreate) */
+/** Ítem a consumir directamente desde inventario */
 export type OrderItem = {
   inventoryItemId: string;
-  qty: number; // en la misma unidad que inventoryItems.unit
-  name?: string | null; // sólo informativo
-  unit?: string | null; // sólo informativo
+  qty: number;              // en la misma unidad que inventoryItems.unit
+  name?: string | null;     // opcional para UI
+  unit?: string | null;     // opcional para UI
 };
 
 export type OrderDoc = {
   id: string;
   orgId: string;
   items: OrderItem[];
-  total: number;          // total cobrado al cliente
-  cogs: number;           // costo de insumos (leer de inventoryItems.costPerUnit)
+  total: number;
+  cogs: number;
   payMethod: PayMethod;
   status: OrderStatus;
   createdAt: any;
-  deliveredAt?: any;
-  canceledAt?: any;
+  deliveredAt?: any | null;
+  canceledAt?: any | null;
   dateKey?: string;
-  // Trazabilidad / fidelización
   customerUid?: string | null;
   staffId?: string | null;
+  // datos crudos del builder (opcional, sin undefined)
+  builder?: any;
 };
 
 /* ---------- internos ---------- */
@@ -59,6 +55,20 @@ const num = (v: any, d = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
 };
+
+// Sanitiza objetos anidados eliminando undefined (Firestore no acepta undefined).
+function stripUndefined<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(stripUndefined) as any;
+  if (v && typeof v === "object") {
+    const out: any = {};
+    for (const [k, val] of Object.entries(v as any)) {
+      if (val === undefined) continue;
+      out[k] = stripUndefined(val as any);
+    }
+    return out;
+  }
+  return v;
+}
 
 async function computeCOGS(db: Firestore, items: OrderItem[]): Promise<number> {
   const parts = await Promise.all(
@@ -72,7 +82,7 @@ async function computeCOGS(db: Firestore, items: OrderItem[]): Promise<number> {
     })
   );
   const cogs = parts.reduce((s, x) => s + x, 0);
-  return Math.round(cogs * 100) / 100; // redondeo 2 decimales
+  return Math.round(cogs * 100) / 100;
 }
 
 function cleanPayMethod(pm?: string): PayMethod {
@@ -81,13 +91,8 @@ function cleanPayMethod(pm?: string): PayMethod {
     : "other";
 }
 
-/* ---------- API ---------- */
+/* ---------- API básica ---------- */
 
-/**
- * Crea una orden "pending".
- * - Escribe orgId, dateKey local, items, total, cogs, payMethod, status, createdAt.
- * - Tu Cloud Function onOrderCreate consumirá inventario (kardex) al crear la orden.
- */
 export async function createOrder(
   db: Firestore,
   payload: {
@@ -96,6 +101,7 @@ export async function createOrder(
     payMethod: PayMethod | string;
     customerUid?: string | null;
     staffId?: string | null;
+    extra?: any; // opcional (p. ej., builder breakdown)
   }
 ): Promise<string> {
   const orgId = getOrgId();
@@ -109,9 +115,9 @@ export async function createOrder(
     .filter((i) => i.inventoryItemId && i.qty > 0);
 
   if (!items.length) throw new Error("La orden no tiene ítems válidos.");
+
   const total = Math.max(0, num(payload.total));
   const payMethod = cleanPayMethod(payload.payMethod);
-
   const cogs = await computeCOGS(db, items);
 
   const ref = doc(collection(db, "orders"));
@@ -124,44 +130,83 @@ export async function createOrder(
     payMethod,
     status: "pending",
     createdAt: serverTimestamp(),
-    deliveredAt: undefined,
-    canceledAt: undefined,
+    // ⚠️ nunca escribimos undefined:
+    deliveredAt: null,
+    canceledAt: null,
     dateKey: toDateKey(),
     customerUid: payload.customerUid ?? null,
     staffId: payload.staffId ?? null,
+    builder: payload.extra ? stripUndefined(payload.extra) : undefined,
   };
 
-  await setDoc(ref, order as any);
+  // Limpieza final por si quedó algo undefined en builder
+  await setDoc(ref, stripUndefined(order) as any);
   return ref.id;
 }
 
+/* ---------- Compat: Builder ---------- */
 /**
- * Marca una orden como entregada (workers pueden hacer este update según tus reglas).
- * - Mantiene inmutable: orgId, total, items, createdAt, payMethod, customerUid.
- * - Suma deliveredAt: serverTimestamp()
- * - Luego intenta otorgar sellos de fidelización (idempotente).
+ * Compatibilidad con el llamado desde BuilderClient:
+ * createOrderFromBuilder({ items:[{ custom:true, sizeId, components[], price, meta }], userId, ... })
+ * - Aplana 'components' a items de inventario y usa 'price' como total.
+ * - payMethod = "other" (se cobra en caja / entrega).
  */
+export async function createOrderFromBuilder(payload: {
+  items: Array<{
+    custom?: boolean;
+    sizeId: string;
+    components: Array<{ itemId: string; qty: number; unit?: string }>;
+    price: number;
+    meta?: any;
+  }>;
+  userId?: string | null;
+  staffId?: string | null;
+  payMethod?: PayMethod | string;
+}, dbInstance: Firestore = defaultDb): Promise<string> {
+
+  // Aplanar componentes → items de inventario
+  const m = new Map<string, { qty: number; name?: string | null; unit?: string | null }>();
+  for (const it of payload.items || []) {
+    for (const c of it.components || []) {
+      if (!c || !c.itemId) continue;
+      const k = String(c.itemId);
+      const prev = m.get(k)?.qty ?? 0;
+      m.set(k, { qty: prev + Math.max(0, num(c.qty)), unit: (c.unit ?? null) as any });
+    }
+  }
+  const items = Array.from(m.entries()).map(([inventoryItemId, v]) => ({
+    inventoryItemId,
+    qty: v.qty,
+    unit: v.unit ?? null,
+  }));
+
+  const total = Math.max(0, num((payload.items || []).reduce((s, it) => s + num(it.price), 0)));
+  const extra = {
+    source: "builder",
+    lines: stripUndefined(payload.items || []),
+  };
+
+  return createOrder(dbInstance, {
+    items,
+    total,
+    payMethod: payload.payMethod ?? "other",
+    customerUid: payload.userId ?? null,
+    staffId: payload.staffId ?? null,
+    extra,
+  });
+}
+
+/* ---------- Entregar / Cancelar ---------- */
+
 export async function markOrderDelivered(db: Firestore, orderId: string): Promise<void> {
   const ref = doc(db, "orders", orderId);
   await updateDoc(ref, {
     status: "delivered",
     deliveredAt: serverTimestamp(),
   });
-
-  // Post-hook: fidelización (idempotente y con sus propias validaciones)
-  try {
-    await awardStampsOnDeliveredOrder(db, orderId);
-  } catch {
-    // silencioso: no bloquea la entrega
-  }
+  try { await awardStampsOnDeliveredOrder(db, orderId); } catch {}
 }
 
-/**
- * Cancela una orden.
- * - Reabre stock consumido en la creación (kardex 'revert' reason:'cancel').
- * - Sella status:'canceled' y canceledAt.
- * - Requiere permisos de Owner (según tus reglas).
- */
 export async function cancelOrder(db: Firestore, orderId: string): Promise<void> {
   const orgId = getOrgId();
   const ref = doc(db, "orders", orderId);
@@ -171,46 +216,31 @@ export async function cancelOrder(db: Firestore, orderId: string): Promise<void>
     if (!snap.exists()) throw new Error("Orden no existe.");
     const o = snap.data() as any as OrderDoc;
 
-    if (o.status === "canceled") return; // idempotente
+    if (o.status === "canceled") return;
     if (o.status === "delivered") throw new Error("No se puede cancelar: ya fue entregada.");
 
-    // Devolvemos el stock (lo consumió CF al crear)
+    // Re-abrir stock (el consumo lo hace tu CF onOrderCreate al crear)
     for (const it of o.items || []) {
       const invRef = doc(db, "inventoryItems", it.inventoryItemId);
       const invSnap = await tx.get(invRef);
-      const cur = invSnap.exists() ? num(invSnap.data()?.stock) : 0;
-      const inc = Math.max(0, num(it.qty));
-      const next = cur + inc;
+      const cur = num(invSnap.exists() ? (invSnap.data() as any)?.stock : 0);
+      const next = cur + Math.max(0, num((it as any).qty));
+      tx.set(invRef, { orgId, stock: next, updatedAt: serverTimestamp() }, { merge: true });
 
-      // actualizar inventario (merge para no fallar si faltara el doc)
-      tx.set(
-        invRef,
-        {
-          orgId,
-          stock: next,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // movimiento de revert (entrada)
       const movRef = doc(collection(db, "stockMovements"));
       tx.set(movRef, {
         id: movRef.id,
         orgId,
         dateKey: toDateKey(),
         at: serverTimestamp(),
-        type: "revert",       // aceptado por tus rules (parche legacy)
-        reason: "cancel",     // aceptado por tus rules
+        type: "revert",
+        reason: "cancel",
         ingredientId: it.inventoryItemId,
-        qty: inc,             // positiva
+        qty: Math.max(0, num((it as any).qty)),
         orderId,
       });
     }
 
-    tx.update(ref, {
-      status: "canceled",
-      canceledAt: serverTimestamp(),
-    });
+    tx.update(ref, { status: "canceled", canceledAt: serverTimestamp() });
   });
 }
