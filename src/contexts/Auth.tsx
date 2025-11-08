@@ -79,6 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (opts?.preferredEmail) params.login_hint = opts.preferredEmail;
         provider.setCustomParameters(params);
 
+            // Detect embedded or GitHub Codespaces environment
+    const mustUseRedirect =
+      window.self !== window.top ||
+      location.hostname.endsWith("github.dev") ||
+      location.hostname.endsWith("app.github.dev");
+
+    if (mustUseRedirect) {
+      await signInWithRedirect(auth, provider);
+      return; // Redirect will handle the rest
+    }
+
         try {
           await signInWithPopup(auth, provider);
         } catch {
