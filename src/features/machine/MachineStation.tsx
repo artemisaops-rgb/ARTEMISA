@@ -4,7 +4,7 @@ import { IceFall } from '@/components/freezeria/IceFall';
 import { LiquidStream, usePourSound } from '@/components/freezeria/PourEngine';
 import { t } from '@/lib/telemetry';
 import { useUI } from '@/app/ui-context';
-import { StickyCTA } from '@/components/StickyCTA';
+import StickyCTA from '@/components/StickyCTA';
 
 interface Ingredient {
   id: string;
