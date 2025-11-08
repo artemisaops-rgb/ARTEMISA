@@ -1,0 +1,30 @@
+=== RESUMEN DE ANÁLISIS DEL PROYECTO ARTEMISA ===
+
+## 1. ARCHIVOS DE LOGIN ENCONTRADOS:
+src/pages/Login.tsx
+src/pages/auth/Login.tsx  ← DUPLICADO - ELIMINAR UNO
+src/routes/Protected.tsx
+src/routes/RoleGuard.tsx
+src/services/auth.ensure.ts
+
+## 2. ARCHIVOS BACKUP (.bak) A ELIMINAR:
+./__bak/Bodega.tsx.bak
+./__bak/InstallPWA.tsx.bak
+./__bak/Productos.tsx.bak
+./__bak/cashbox.ts.bak
+./__bak/NavBar.tsx.bak
+./dist/sw.disabled.js.bak
+./public/sw.disabled.js.bak
+
+## 3. CARPETA DIST/ (ARTEFACTOS DE BUILD) - ELIMINAR:
+./dist/ - Contiene archivos generados que no deben estar en Git
+
+## 4. CARPETA __BAK/ COMPLETA - ELIMINAR:
+./__bak/ - Carpeta de backups innecesaria
+
+## 5. RECOMENDACIONES:
+- Mantener solo UN archivo Login.tsx (decidir cuál)
+- Eliminar carpeta __bak/ completa
+- Eliminar carpeta dist/ y agregarla al .gitignore
+- Eliminar archivos *.bak sueltos
+- Revisar si hay otros duplicados en src/pages/

@@ -11,3 +11,16 @@ build
 node_modules
 .DS_Store
 .firebase/
+
+# Build artifacts
+dist/
+
+# Backup folders
+__bak/
+backups/
+__js_backup*/
+
+# Backup files
+*.bak
+*.old
+*.backup

@@ -1,0 +1,29 @@
+=== RESUMEN DE DETECCIÓN DE BASURA Y DUPLICADOS ===
+
+## 1. BACKUPS Y ARTEFACTOS (eliminar):
+- .js
+- __js_backup_20251001_161325/src/types.ts
+- models.js
+- dist/sw.disabled.js.bak
+- public/sw.disabled.js.bak
+- storage.rules.bak
+
+## 2. ARTEFACTOS DIST/ VERSIONADOS (eliminar):
+- dist/pwa-192.png
+- dist/pwa-512.png
+- dist/sw.disabled.js
+- dist/sw.disabled.js.bak
+- dist/sw.js
+- dist/vite.svg
+
+## 3. DUPLICADOS POR NOMBRE:
+
+### customers.ts (revisar cuál mantener):
+- src/lib/customers.ts
+- src/services/customers.ts
+
+### theme.css (consolidar):
+- src/styles/theme.css (probable principal)
+- src/theme.css (probable duplicado en raíz)
+- src/styles/freezeria.theme.css (específico de freezeria, mantener)
+
