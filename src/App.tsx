@@ -19,6 +19,7 @@ import DevSeed from "@/pages/DevSeed";
 import Exportes from "@/pages/Exportes";
 import Bootstrap from "@/pages/Bootstrap";
 import Login from "@/pages/Login";
+import { MachineStation } from "@/features/machine/MachineStation";
 import Mas from "@/pages/Mas";
 import Caja from "@/pages/Caja";
 import Clientes from "@/pages/Clientes";
@@ -101,6 +102,7 @@ export default function App() {
             {/* Comunes */}
             <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
               <Route path="/menu" element={<Menu />} />
+                            <Route path="/machine" element={<MachineStation />} />
               <Route path="/mas" element={<Mas />} />
               <Route path="/builder" element={<BuilderClient />} />
             </Route>
