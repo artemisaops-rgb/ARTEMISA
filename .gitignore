@@ -6,3 +6,8 @@ serviceAccount.json
 dist
 build
 .DS_Store
+
+/dist
+node_modules
+.DS_Store
+.firebase/
