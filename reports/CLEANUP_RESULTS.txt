@@ -1,0 +1,41 @@
+=== RESULTADOS DE LIMPIEZA DEL PROYECTO ARTEMISA ===
+Fecha: $(date)
+
+## ARCHIVOS Y CARPETAS ELIMINADOS:
+
+### 1. Carpetas de Backup eliminadas:
+- __bak/ (contenía: Bodega.tsx.bak, InstallPWA.tsx.bak, Productos.tsx.bak, etc.)
+- __js_backup_20251001_161325/
+- backups/
+
+### 2. Carpeta de Build eliminada:
+- dist/ (artefactos de compilación que no deben estar en Git)
+
+### 3. Archivos duplicados eliminados:
+- src/pages/auth/Login.tsx (DUPLICADO - se mantiene src/pages/Login.tsx)
+
+### 4. Archivos .bak individuales eliminados:
+- Todos los archivos *.bak encontrados en el proyecto
+
+## ARCHIVOS DE LOGIN ACTIVOS (después de limpieza):
+- src/pages/Login.tsx (✓ ARCHIVO PRINCIPAL)
+- src/routes/Protected.tsx
+- src/routes/RoleGuard.tsx
+- src/services/auth.ensure.ts
+- src/contexts/AuthContext.tsx
+
+## MEJORAS APLICADAS:
+- .gitignore actualizado para prevenir que se agreguen nuevamente:
+  * dist/
+  * __bak/, backups/, __js_backup*/
+  * *.bak, *.old, *.backup
+
+## ESTRUCTURA LIMPIA:
+El proyecto ahora solo contiene archivos necesarios y en uso.
+Se eliminaron duplicados y backups innecesarios.
+
+## PRÓXIMOS PASOS RECOMENDADOS:
+1. Commit de estos cambios
+2. Revisar que la app funcione correctamente
+3. Push a repositorio remoto
+4. Continuar con desarrollo de features

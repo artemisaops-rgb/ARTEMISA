@@ -1,0 +1,4 @@
+src/hooks/useCustomerSearch.ts
+src/hooks/useMyLoyalty.ts
+src/hooks/useMyOrders.ts
+src/hooks/useRole.ts

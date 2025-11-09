@@ -1,0 +1,131 @@
+src
+├── App.tsx
+├── app
+│   └── ui-context.tsx
+├── assets
+│   ├── artemisa-icon.png
+│   └── react.svg
+├── brief.ts
+├── components
+│   ├── AppShell.tsx
+│   ├── ArcadeParts.tsx
+│   ├── AtlBackground.tsx
+│   ├── BottomNav.tsx
+│   ├── CollapsibleRecipe.tsx
+│   ├── DevRoleToggle.tsx
+│   ├── FrappeStudio.tsx
+│   ├── InstallPWA.tsx
+│   ├── LinkPreserveAs.tsx
+│   ├── ModeSwitch.tsx
+│   ├── NavBar.tsx
+│   ├── ProductCard.tsx
+│   ├── RecipeEditor.tsx
+│   ├── RecipePicker.tsx
+│   ├── RoleSwitch.tsx
+│   ├── SearchBar.tsx
+│   ├── StickyCTA.tsx
+│   ├── SupervisionBanner.tsx
+│   ├── auth
+│   │   └── RequireRole.tsx
+│   └── freezeria
+│       ├── Blender.tsx
+│       ├── Cup.tsx
+│       ├── MeterGame.tsx
+│       ├── Nozzle.tsx
+│       └── Ticket.tsx
+├── contexts
+│   ├── Auth.tsx
+│   ├── AuthContext.tsx
+│   ├── CartContext.tsx
+│   ├── OwnerMode.tsx
+│   └── PreviewRole.tsx
+├── env.d.ts
+├── flags
+│   └── devRole.ts
+├── helpers
+│   ├── builder.ts
+│   └── frappe.ts
+├── hooks
+│   ├── useCustomerSearch.ts
+│   ├── useMyLoyalty.ts
+│   ├── useMyOrders.ts
+│   └── useRole.ts
+├── index.css
+├── lib
+│   ├── cashbox.ts
+│   ├── customers.ts
+│   ├── inventory.ts
+│   ├── memberships.ts
+│   ├── openDay.ts
+│   ├── orders.ts
+│   ├── org.ts
+│   ├── policy.ts
+│   ├── pos.helpers.ts
+│   ├── purchases.ts
+│   ├── roles.ts
+│   ├── safe.ts
+│   └── safeUpdate.ts
+├── main.tsx
+├── pages
+│   ├── Admin
+│   │   └── BuilderConfig.tsx
+│   ├── AdminSeed.tsx
+│   ├── Apertura.tsx
+│   ├── Bodega.tsx
+│   ├── Bootstrap.tsx
+│   ├── BuilderClient.tsx
+│   ├── Caja.tsx
+│   ├── Carrito.tsx
+│   ├── Cierre.tsx
+│   ├── ClientStart.tsx
+│   ├── ClienteHome.tsx
+│   ├── Clientes.tsx
+│   ├── Compras.tsx
+│   ├── ComprasDetalle.tsx
+│   ├── DevSeed.tsx
+│   ├── Estadisticas.tsx
+│   ├── Exportes.tsx
+│   ├── Horarios.tsx
+│   ├── Kiosk.tsx
+│   ├── Login.tsx
+│   ├── Mas.tsx
+│   ├── Menu.tsx
+│   ├── Presets.tsx
+│   ├── Productos.tsx
+│   ├── Ventas.tsx
+│   ├── WorkerPanel.tsx
+│   ├── auth
+│   ├── historial.tsx
+│   ├── legal
+│   │   ├── Privacidad.tsx
+│   │   └── Terminos.tsx
+│   ├── proveedores.tsx
+│   ├── tareas.tsx
+│   └── worker
+├── routes
+│   ├── Protected.tsx
+│   └── RoleGuard.tsx
+├── services
+│   ├── auth.ensure.ts
+│   ├── bodega.ts
+│   ├── customers.ts
+│   ├── firebase.ts
+│   ├── order.ts
+│   ├── org.hint.ts
+│   ├── pricing.ts
+│   └── types.ar.rb.ts
+├── styles
+│   ├── freezeria.builder.css
+│   ├── freezeria.theme.css
+│   └── theme.css
+├── styles.css
+├── sw-register.ts
+├── theme.css
+├── types
+│   └── models.ts
+├── types.ts
+├── utils
+│   └── firestoreSafe.ts
+└── vite-env.d.ts
+
+21 directories, 108 files
