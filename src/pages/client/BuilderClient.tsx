@@ -13,8 +13,8 @@ import type {
   InventoryItem, TemplateComponent, SizeOption, Unit as SvcUnit,
 } from "@/services/types.ar.rb";
 
-import { Cup } from "../components/freezeria/Cup";
-import { Ticket } from "../components/freezeria/Ticket";
+import { Cup } from "../../components/freezeria/Cup";
+import { Ticket } from "../../components/freezeria/Ticket";
 
 /* =========================
    Flags DEV (omite claims) y helpers de Org (evita 400/403)

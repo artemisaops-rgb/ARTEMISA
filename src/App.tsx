@@ -18,7 +18,7 @@ import AdminSeed from "@/pages/AdminSeed";
 import DevSeed from "@/pages/DevSeed";
 import Exportes from "@/pages/Exportes";
 import Bootstrap from "@/pages/Bootstrap";
-import Login from "@/pages/Login";
+import Login from "@/pages/auth/Login";
 import Mas from "@/pages/Mas";
 import Caja from "@/pages/Caja";
 import Clientes from "@/pages/Clientes";
@@ -28,7 +28,7 @@ import Historial from "@/pages/historial";
 import Proveedores from "@/pages/proveedores";
 
 /* Builder/Kiosk */
-import BuilderClient from "@/pages/BuilderClient";
+import BuilderClient from "@/pages/client/BuilderClient";
 import Kiosk from "@/pages/Kiosk";
 import BuilderConfigPage from "@/pages/Admin/BuilderConfig";
 import Presets from "@/pages/Presets";
