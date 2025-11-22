@@ -8,8 +8,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
-type Role = 'client' | 'worker' | 'admin';
-
+type Role = 'client' | 'worker' | 'owner';
 interface AuthContextType {
   user: User | null;
   role: Role | null;
