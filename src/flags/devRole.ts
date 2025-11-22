@@ -4,8 +4,7 @@
  * Permite cambiar de rol sin crear múltiples cuentas
  */
 
-export type UserRole = "worker" | "client" | "owner" | "admin";
-
+export type UserRole = "worker" | "client" | "owner";
 /**
  * Override de rol para desarrollo
  * Lee de localStorage la clave DEV_FORCE_ROLE
@@ -25,8 +24,7 @@ export function devOverrideRole(realRole: string | undefined): string | undefine
   const devRole = localStorage.getItem("DEV_FORCE_ROLE");
   
   // Si hay un rol forzado en dev, usarlo
-  if (devRole && ["worker", "client", "owner", "admin"].includes(devRole)) {
-    console.log(`[DEV] Rol forzado: ${devRole} (real: ${realRole || "ninguno"})`);
+ if (devRole && ["worker", "client", "owner"].includes(devRole)) {    console.log(`[DEV] Rol forzado: ${devRole} (real: ${realRole || "ninguno"})`);
     return devRole;
   }
 
