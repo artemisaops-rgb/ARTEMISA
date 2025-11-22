@@ -116,7 +116,7 @@ export default function Login() {
       <section className="atl-card">
         <div className="atl-brand">
           <AtlantisLogo />
-          <h1>Artemisa</h1>
+          <h1>Artemisa - HMR Funcionando!</h1>
           <p>POS • Fidelización • Atlántida UI</p>
         </div>
 

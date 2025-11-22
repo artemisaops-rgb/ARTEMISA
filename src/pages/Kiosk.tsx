@@ -1,4 +1,4 @@
-﻿import BuilderClient from "./BuilderClient";
+﻿import BuilderClient from "./client/BuilderClient";
 import { useEffect, useState } from "react";
 import { db, getOrgId } from "@/services/firebase";
 import { doc, getDoc } from "firebase/firestore";
