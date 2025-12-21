@@ -12,14 +12,14 @@ export type ProductCardProps = {
   currency?: string;
   className?: string;
   density?: "regular" | "compact";
-  disabled?: boolean; // <-- NUEVO
+  disabled?: boolean;
 };
 
 const fallback =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 240'>\
-<rect width='100%' height='100%' fill='%23f1f5f9'/>\
+<rect width='100%' height='100%' fill='none'/>\
 <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' \
-font-family='system-ui,Segoe UI,Roboto,Arial' font-size='14' fill='%2394a3b8'>Sin foto</text></svg>";
+font-family='system-ui,Segoe UI,Roboto,Arial' font-size='14' fill='%23888888'>Sin foto</text></svg>";
 
 const money = (n?: number | null, currency = "$") =>
   n == null ? "—" : `${currency}${Number(n || 0).toLocaleString()}`;
@@ -78,15 +78,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
       <style>{`
         .atl-card{
-          background:#fff; border:1px solid var(--atl-ice);
+          background:var(--bg-card); border:1px solid var(--border-dim);
           border-radius:18px; overflow:hidden;
-          box-shadow:0 10px 24px rgba(10,39,64,.08);
+          box-shadow:var(--glow-xs);
           display:flex; flex-direction:column;
           transition:transform .12s ease, box-shadow .12s ease;
         }
-        .atl-card:hover{ transform:translateY(-2px); box-shadow:0 14px 30px rgba(10,39,64,.12); }
+        .atl-card:hover{ transform:translateY(-2px); box-shadow:var(--glow-sm); }
 
-        .atl-card__media{ position:relative; aspect-ratio:16/9; background:#f1f5f9; }
+        .atl-card__media{ position:relative; aspect-ratio:16/9; background:var(--bg-overlay); }
         .atl-card__media img{ width:100%; height:100%; object-fit:cover; display:block; }
 
         .atl--compact .atl-card__media{ aspect-ratio:4/3; max-height:160px; }
@@ -95,25 +95,25 @@ const ProductCard: React.FC<ProductCardProps> = ({
         .atl-badge{
           position:absolute; top:8px; left:8px; padding:4px 8px; font-size:12px; font-weight:600;
           border-radius:999px; backdrop-filter:saturate(1.1) blur(4px);
-          border:1px solid rgba(255,255,255,.6);
+          border:1px solid rgba(255,255,255,.2);
         }
-        .atl-badge--activo{ background:linear-gradient(180deg,var(--atl-azure),var(--atl-quartz)); color:var(--atl-navy); }
-        .atl-badge--agotado{ background:#f1f5f9; color:#475467; }
-        .atl-badge--solo{ background:#fff7ed; color:#9a3412; }
+        .atl-badge--activo{ background:linear-gradient(180deg,var(--atl-azure),var(--atl-quartz)); color:var(--text-dark); }
+        .atl-badge--agotado{ background:rgba(255,255,255,0.1); color:var(--text-muted); }
+        .atl-badge--solo{ background:rgba(255, 215, 0, 0.15); color:var(--neon-gold); border-color:var(--neon-gold); }
 
         .atl-card__body{ padding:12px; display:flex; flex-direction:column; gap:6px; flex:1; }
         .atl--compact .atl-card__body{ padding:10px; gap:6px; }
 
-        .atl-card__title{ font-weight:700; line-height:1.2; font-size:15px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .atl-card__title{ font-weight:700; line-height:1.2; font-size:15px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:var(--text-main); }
         .atl--compact .atl-card__title{ font-size:14px; }
 
-        .atl-card__price{ color:#475467; font-weight:600; }
+        .atl-card__price{ color:var(--text-muted); font-weight:600; }
 
         .atl-cta{
           margin-top:auto; height:38px; border-radius:12px; border:none; cursor:pointer;
-          background:linear-gradient(90deg,var(--gold),var(--gold-2)); color:var(--atl-navy);
+          background:linear-gradient(90deg,var(--gold),var(--gold-2)); color:var(--text-dark);
           font-weight:800; letter-spacing:.2px;
-          box-shadow:0 10px 22px rgba(227,196,85,.28);
+          box-shadow:var(--glow-gold);
           transition:transform .08s ease, opacity .12s ease;
         }
         .atl--compact .atl-cta{ height:34px; border-radius:10px; font-weight:750; }

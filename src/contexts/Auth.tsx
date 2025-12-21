@@ -38,33 +38,61 @@ type AuthCtx = {
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // MOCK USER FOR TESTING
+  const MOCK_USER = {
+    uid: "mock-owner-uid",
+    email: "mock@artemisa.app",
+    displayName: "Mock Owner",
+    emailVerified: true,
+    isAnonymous: false,
+    metadata: {},
+    providerData: [],
+    refreshToken: "",
+    tenantId: null,
+    delete: async () => {},
+    getIdToken: async () => "mock-token",
+    getIdTokenResult: async () => ({
+      token: "mock-token",
+      signInProvider: "custom",
+      claims: {},
+      authTime: Date.now().toString(),
+      issuedAtTime: Date.now().toString(),
+      expirationTime: (Date.now() + 3600000).toString(),
+    }),
+    reload: async () => {},
+    toJSON: () => ({}),
+    phoneNumber: null,
+    photoURL: null,
+    providerId: "firebase",
+  } as unknown as User;
+
+  const [user, setUser] = useState<User | null>(MOCK_USER); // Start with mock user
+  const [loading, setLoading] = useState(false); // No loading needed
 
   useEffect(() => {
-    setPersistence(auth, browserSessionPersistence).catch(() => {});
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u ?? null);
-      setLoading(false);
-      (window as any).__firebaseAuthUid = u?.uid ?? null; // para hooks que lo leen
+    // setPersistence(auth, browserSessionPersistence).catch(() => {});
+    // const unsub = onAuthStateChanged(auth, (u) => {
+    //   setUser(u ?? null);
+    //   setLoading(false);
+    //   (window as any).__firebaseAuthUid = u?.uid ?? null; // para hooks que lo leen
 
-      if (u) {
-        // ⬇️ Aquí sincronizamos membresía (con displayName) y perfil de cliente
-        Promise.allSettled([
-          ensureMemberOnLogin({
-            uid: u.uid,
-            email: u.email,
-            displayName: u.displayName,
-          }),
-          ensureCustomerDoc(db, u.uid, {
-            email: u.email ?? null,
-            displayName: u.displayName ?? null,
-            photoURL: u.photoURL ?? null,
-          }),
-        ]).catch(() => {});
-      }
-    });
-    return () => unsub();
+    //   if (u) {
+    //     // ⬇️ Aquí sincronizamos membresía (con displayName) y perfil de cliente
+    //     Promise.allSettled([
+    //       ensureMemberOnLogin({
+    //         uid: u.uid,
+    //         email: u.email,
+    //         displayName: u.displayName,
+    //       }),
+    //       ensureCustomerDoc(db, u.uid, {
+    //         email: u.email ?? null,
+    //         displayName: u.displayName ?? null,
+    //         photoURL: u.photoURL ?? null,
+    //       }),
+    //     ]).catch(() => {});
+    //   }
+    // });
+    // return () => unsub();
   }, []);
 
   const value = useMemo<AuthCtx>(

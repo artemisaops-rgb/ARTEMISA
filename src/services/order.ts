@@ -40,7 +40,7 @@ function cleanItem(raw: any): CleanItem {
       qty: Math.max(0, num(c?.qty)),
       unit: String(c?.unit ?? "pc"),
     }))
-    .filter((c) => c.itemId && c.qty > 0);
+    .filter((c: CleanComponent) => c.itemId && c.qty > 0);
 
   const metaIn = raw?.meta ?? {};
   const meta: Record<string, any> = {};
@@ -116,7 +116,7 @@ export async function createOrderFromBuilder(params: {
   // descuenta stock por TODOS los componentes
   const allComponents: CleanComponent[] = safeItems.flatMap((i) => i.components);
   if (allComponents.length) {
-    await applyStockForOrder(params.orgId, orderId, allComponents);
+    await applyStockForOrder(params.orgId, orderId, allComponents as any);
   }
 
   return orderId;
@@ -228,7 +228,7 @@ export async function createOrderAndEnqueue(params: {
   // Descontar stock (post-commit)
   const allComponents: CleanComponent[] = safeItems.flatMap((i) => i.components);
   if (allComponents.length) {
-    await applyStockForOrder(params.orgId, orderId, allComponents);
+    await applyStockForOrder(params.orgId, orderId, allComponents as any);
   }
 
   return orderId;

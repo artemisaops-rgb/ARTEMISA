@@ -21,7 +21,10 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
+
+
 
 /** Env-first con fallback seguro */
 
@@ -40,11 +43,11 @@ export const app = getApps().length ? getApps()[0]! : initializeApp(firebaseConf
       navigator.serviceWorker.getRegistrations?.().then((regs) => {
         regs.forEach((r) => {
           const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
-          if (/\/sw(\.js)?($|\?)/.test(url) || /workbox/i.test(url)) r.unregister().catch(() => {});
+          if (/\/sw(\.js)?($|\?)/.test(url) || /workbox/i.test(url)) r.unregister().catch(() => { });
         });
       });
     }
-  } catch {}
+  } catch { }
 })();
 
 // ---- Auth ----
@@ -117,11 +120,11 @@ export async function initMonitoring() {
     const a = await import("firebase/analytics");
     const ok = (await (a.isSupported?.() ?? Promise.resolve(true))) && !_analytics;
     if (ok) _analytics = a.getAnalytics(app);
-  } catch {}
+  } catch { }
   try {
     const p = await import("firebase/performance");
     if (!_perf) _perf = p.getPerformance(app);
-  } catch {}
+  } catch { }
   return { analytics: _analytics, perf: _perf };
 }
 
@@ -132,7 +135,7 @@ export async function gaLog(eventName: string, params?: Record<string, any>) {
       const a = await import("firebase/analytics");
       a.logEvent(_analytics, eventName as any, params);
     }
-  } catch {}
+  } catch { }
 }
 
 // ---- Organización (multi-tenant) ----
@@ -146,7 +149,7 @@ export function getOrgId(): string {
 }
 
 export function setOrgId(orgId: string) {
-  try { localStorage.setItem("orgId", String(orgId)); } catch {}
+  try { localStorage.setItem("orgId", String(orgId)); } catch { }
 }
 
 export function getCurrentRole(): "owner" | "worker" | "client" | string {
@@ -177,7 +180,7 @@ export function onClaimsUpdated(handler: (e: { orgId?: string; role?: string }) 
     try {
       const detail = (ev as CustomEvent).detail || {};
       handler(detail);
-    } catch {}
+    } catch { }
   };
   window.addEventListener("claims:updated", cb as EventListener);
   return () => window.removeEventListener("claims:updated", cb as EventListener);
@@ -195,7 +198,7 @@ export function startAuthClaimsSync() {
 
       if (org) setOrgId(org);
       if (role) {
-        try { localStorage.setItem("myRole", role); } catch {}
+        try { localStorage.setItem("myRole", role); } catch { }
         document?.documentElement?.setAttribute?.("data-role", role);
       }
 
@@ -203,8 +206,8 @@ export function startAuthClaimsSync() {
       try {
         const ev = new CustomEvent("claims:updated", { detail: { orgId: org || undefined, role: role || undefined } });
         window.dispatchEvent(ev);
-      } catch {}
-    } catch {}
+      } catch { }
+    } catch { }
   });
 }
 

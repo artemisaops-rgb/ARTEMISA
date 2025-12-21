@@ -7,6 +7,7 @@ import { useRole } from "@/hooks/useRole";
 import { useOwnerMode } from "@/contexts/OwnerMode";
 import ProductCard from "@/components/ProductCard";
 import SearchBar from "@/components/SearchBar";
+import RoleSwitch from "@/components/RoleSwitch";
 
 type Recipe = Record<string, number>;
 type Size = { id?: string; name?: string; label?: string; price?: number; recipe?: Recipe };
@@ -43,10 +44,9 @@ export default function Menu() {
   const { role, realRole } = useRole(user?.uid);
   const { mode } = useOwnerMode();
 
-  const isClient = role === "client";
   const isOwnerMonitor = realRole === "owner" && mode === "monitor";
-  // Cliente o Owner en modo monitor → solo visual
-  const readOnly = isClient || isOwnerMonitor;
+  // Owner en modo monitor → solo visual. Clientes SI pueden pedir.
+  const readOnly = isOwnerMonitor;
 
   const [loading, setLoading] = useState(true);
   const [raw, setRaw] = useState<Product[]>([]);
@@ -115,7 +115,7 @@ export default function Menu() {
   return (
     <div className="container-app space-y-4" style={{ paddingBottom: "var(--bottom-bar-space,140px)" }}>
       {/* Header + búsqueda */}
-      <div className="sticky top-0 z-10 bg-gradient-to-b from-white via-white to-transparent pt-3">
+      <div className="sticky top-0 z-10 pt-3" style={{ background: "linear-gradient(to bottom, var(--bg) 0%, var(--bg) 85%, transparent 100%)" }}>
         <SearchBar value={q} onChange={setQ} placeholder={readOnly ? "Buscar en la carta..." : "Buscar productos..."} />
 
         {/* Chips de categorías */}
@@ -158,7 +158,7 @@ export default function Menu() {
       </div>
 
       {!loading && !products.length && (
-        <div className="text-center text-slate-500 py-10">
+        <div className="text-center py-10" style={{ color: "var(--text-muted)" }}>
           <div className="text-lg font-medium">Sin resultados</div>
           <div className="text-sm">Prueba buscando otro producto o cambia de categoría.</div>
         </div>
@@ -224,6 +224,9 @@ export default function Menu() {
         </div>
       )}
 
+      {/* Switch de Roles (Developer Mode) */}
+      <RoleSwitch />
+
       {/* ===== Estilos locales ===== */}
       <style>{`
         .menu-grid{
@@ -234,56 +237,56 @@ export default function Menu() {
           .menu-grid{ gap:16px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
         }
         .skeleton{
-          border-radius:18px; border:1px solid var(--atl-ice); background:#fff;
+          border-radius:18px; border:1px solid var(--border-dim); background:var(--bg-card);
           height: 240px; overflow:hidden; position:relative;
         }
         .skeleton::before{
           content:""; position:absolute; inset:0;
-          background: linear-gradient(90deg,#f1f5f9, #eef2f7 30%, #f1f5f9 60%);
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05) 30%, transparent 60%);
           animation: sk 1.4s infinite linear;
         }
         @keyframes sk{ 0%{transform:translateX(-20%)} 100%{transform:translateX(20%)} }
 
         .atl-chips{ margin-top:12px; display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; }
         .atl-chip{
-          padding:8px 12px; border-radius:999px; border:1px solid var(--atl-ice);
-          background:#fff; color:#475467; font-size:13px; text-transform:capitalize;
+          padding:8px 12px; border-radius:999px; border:1px solid var(--border-dim);
+          background:var(--bg-card); color:var(--text-muted); font-size:13px; text-transform:capitalize;
           transition: box-shadow .15s ease, transform .05s ease, background .15s ease; white-space:nowrap;
         }
-        .atl-chip:hover{ box-shadow:0 8px 18px rgba(10,39,64,.10); }
+        .atl-chip:hover{ box-shadow:var(--glow-xs); color:var(--text-main); }
         .atl-chip:active{ transform:scale(.98); }
         .atl-chip.is-active{
-          background:linear-gradient(180deg,var(--atl-azure),var(--atl-quartz));
-          color:var(--atl-navy); border-color:transparent; box-shadow:0 10px 24px rgba(0,200,255,.20);
+          background:linear-gradient(180deg,var(--neon-gold),#b8860b);
+          color:black; border-color:transparent; box-shadow:var(--glow-sm);
         }
 
-        .atl-size-backdrop{ position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.45);
-          display:flex; align-items:flex-end; justify-content:center; }
+        .atl-size-backdrop{ position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.6);
+          display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
         @media (min-width: 768px){ .atl-size-backdrop{ align-items:center; } }
 
         .atl-size-card{
-          width:100%; max-width:640px; background:#fff; border-radius:20px 20px 0 0;
-          border:1px solid var(--atl-ice); box-shadow:0 30px 60px rgba(10,39,64,.25);
+          width:100%; max-width:640px; background:var(--bg-card); border-radius:20px 20px 0 0;
+          border:1px solid var(--border-glow); box-shadow:var(--glow-md);
           overflow:hidden;
         }
         @media (min-width: 768px){ .atl-size-card{ border-radius:20px; } }
 
         .atl-size-head{
           display:flex; align-items:center; gap:12px; padding:14px 14px;
-          background: linear-gradient(180deg, rgba(110,246,232,.20), rgba(0,200,255,.10));
-          border-bottom:1px solid var(--atl-ice);
+          background: linear-gradient(180deg, rgba(255, 215, 0, 0.05), transparent);
+          border-bottom:1px solid var(--border-dim);
         }
-        .atl-size-thumb{ width:48px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--atl-ice); }
-        .atl-size-thumb--empty{ background:#f1f5f9; }
+        .atl-size-thumb{ width:48px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--border-dim); }
+        .atl-size-thumb--empty{ background:rgba(255,255,255,0.05); }
         .atl-size-title{ min-width:0; }
-        .atl-size-cat{ font-size:11px; color:#637381; text-transform:capitalize; }
-        .atl-size-name{ font-weight:700; color:var(--atl-navy); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .atl-size-cat{ font-size:11px; color:var(--text-muted); text-transform:capitalize; }
+        .atl-size-name{ font-weight:700; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
         .atl-x{
-          margin-left:auto; width:36px; height:36px; border-radius:10px; border:1px solid var(--atl-ice);
-          background:#fff; font-weight:700; color:#475467; display:grid; place-items:center;
+          margin-left:auto; width:36px; height:36px; border-radius:10px; border:1px solid var(--border-dim);
+          background:transparent; font-weight:700; color:var(--text-muted); display:grid; place-items:center;
         }
-        .atl-x:hover{ background:#f8fafc; }
+        .atl-x:hover{ background:rgba(255,255,255,0.05); color:var(--text-main); }
 
         .atl-size-grid{ display:grid; gap:10px; padding:14px; grid-template-columns: 1fr; }
         @media (min-width: 520px){ .atl-size-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -291,25 +294,25 @@ export default function Menu() {
 
         .atl-size-btn{
           display:flex; align-items:center; gap:10px; padding:12px 12px;
-          border:1px solid var(--atl-ice); border-radius:14px; background:#fff;
+          border:1px solid var(--border-dim); border-radius:14px; background:rgba(255,255,255,0.02);
           transition: box-shadow .18s ease, transform .04s ease, border-color .18s ease;
         }
-        .atl-size-btn:hover{ border-color:var(--atl-azure); box-shadow:0 12px 22px rgba(0,200,255,.20); }
+        .atl-size-btn:hover{ border-color:var(--neon-gold); box-shadow:var(--glow-xs); background:rgba(255,255,255,0.05); }
         .atl-size-btn:active{ transform: scale(.98); }
         .atl-size-btn:disabled{ opacity:.6; cursor:not-allowed; }
 
         .atl-token{ width:36px; height:36px; border-radius:12px; display:grid; place-items:center;
-          font-weight:800; color:var(--atl-navy);
-          background: linear-gradient(180deg, var(--atl-azure), var(--atl-quartz));
-          box-shadow: 0 8px 18px rgba(0,200,255,.25);
+          font-weight:800; color:black;
+          background: linear-gradient(180deg, var(--neon-gold), #b8860b);
+          box-shadow: var(--glow-xs);
         }
-        .atl-size-label{ font-weight:600; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .atl-size-price{ margin-left:auto; font-weight:700; color:#475467; }
+        .atl-size-label{ font-weight:600; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .atl-size-price{ margin-left:auto; font-weight:700; color:var(--text-muted); }
 
-        .atl-size-foot{ padding:10px 14px 16px; border-top:1px solid var(--atl-ice); background:#fff; }
-        .atl-cancel{ width:100%; height:44px; border-radius:12px; border:1px solid var(--atl-ice);
-          background:#fff; font-weight:600; color:#334155; }
-        .atl-cancel:hover{ background:#f8fafc; }
+        .atl-size-foot{ padding:10px 14px 16px; border-top:1px solid var(--border-dim); background:var(--bg-card); }
+        .atl-cancel{ width:100%; height:44px; border-radius:12px; border:1px solid var(--border-dim);
+          background:transparent; font-weight:600; color:var(--text-muted); }
+        .atl-cancel:hover{ background:rgba(255,255,255,0.05); color:var(--text-main); }
       `}</style>
     </div>
   );

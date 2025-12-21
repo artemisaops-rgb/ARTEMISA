@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { getDevRole, setDevRole, type UserRole } from '../flags/devRole';
-import { useAuth } from '../contexts/AuthContext';
+import { getDevRole, setDevRole, type UserRole } from '../../flags/devRole';
+import { useAuth } from '../../contexts/Auth';
+import { useRole } from '../../hooks/useRole';
 
 /**
  * Toggle visual para cambiar de rol en desarrollo
  * Solo visible en modo DEV
  */
 export function DevRoleToggle() {
-  const { role: currentRole } = useAuth();
+  const { user } = useAuth();
+  const { role: currentRole } = useRole(user?.uid);
   const [devRole, setDevRoleState] = useState<UserRole | null>(null);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function DevRoleToggle() {
     return null;
   }
 
-  const roles: (UserRole | null)[] = [null, 'worker', 'client', 'owner', 'admin'];
+  const roles: (UserRole | null)[] = [null, 'worker', 'client', 'owner'];
 
   const handleRoleChange = (role: UserRole | null) => {
     setDevRole(role);
@@ -70,7 +72,6 @@ export function DevRoleToggle() {
         <option value="worker">Worker</option>
         <option value="client">Client</option>
         <option value="owner">Owner</option>
-        <option value="admin">Admin</option>
       </select>
       <div style={{ marginTop: '8px', fontSize: '10px', opacity: 0.7 }}>
         ⚠️ Solo visible en desarrollo

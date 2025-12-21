@@ -10,7 +10,7 @@ import { useCart } from "@/contexts/CartContext";
 const IconMenu = () => {
   const gid = useId();
   return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--atl-navy)" }}>
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
       <defs>
         <linearGradient id={`${gid}-g`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="var(--atl-azure)" />
@@ -24,14 +24,14 @@ const IconMenu = () => {
   );
 };
 const IconPanel = () => (
-  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--atl-navy)" }}>
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
     <path d="M4 19h16M6 17V7m6 10V5m6 12V9" fill="none" stroke="currentColor" strokeWidth="1.8" />
   </svg>
 );
 const IconCart = () => {
   const gid = useId();
   return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--atl-navy)" }}>
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
       <defs>
         <linearGradient id={`${gid}-g`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="var(--gold)" />
@@ -45,13 +45,13 @@ const IconCart = () => {
   );
 };
 const IconBodega = () => (
-  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--atl-navy)" }}>
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
     <path d="M3 10 12 5l9 5v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
     <path d="M7 21v-6h10v6" stroke="currentColor" strokeWidth="1.8" />
   </svg>
 );
 const IconUser = () => (
-  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--atl-navy)" }}>
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style={{ color: "var(--text-muted)" }}>
     <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
     <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" fill="none" stroke="currentColor" strokeWidth="1.8" />
   </svg>
@@ -156,9 +156,11 @@ export default function NavBar() {
           position:fixed; left:50%; transform:translateX(-50%);
           bottom:8px; z-index:50; width:min(94%,560px);
           padding:8px 10px env(safe-area-inset-bottom) 10px;
-          border-radius:24px; background:rgba(255,255,255,.92);
-          border:1px solid var(--atl-ice); backdrop-filter:saturate(1.15) blur(10px);
-          box-shadow:0 12px 32px rgba(10,39,64,.12), inset 0 1px 0 rgba(255,255,255,.7);
+          border-radius:24px; 
+          background: #111111; /* Force dark background */
+          border:1px solid var(--border-glow); 
+          backdrop-filter:saturate(1.15) blur(10px);
+          box-shadow:var(--glow-sm);
         }
         .atl-dock a{ text-decoration:none; color:inherit; }
         .atl-dock__grid{ display:flex; align-items:center; justify-content:space-evenly; gap:4px; flex-wrap:nowrap; }
@@ -167,34 +169,36 @@ export default function NavBar() {
           flex:1 1 0; min-width:68px;
           display:flex; flex-direction:column; align-items:center; justify-content:center;
           gap:6px; padding:8px 6px; border-radius:16px; transition:all .18s;
-          color:#475467;
+          color: #888888; /* Muted text */
         }
-        .atl-item:hover{ background:rgba(255,255,255,.7); }
+        .atl-item:hover{ background:rgba(255,255,255,.05); color: #ffffff; }
         .atl-item--active{
-          background:linear-gradient(180deg,var(--atl-azure),var(--atl-quartz));
-          color:var(--atl-navy);
-          box-shadow:0 10px 24px rgba(0,200,255,.28);
+          background:linear-gradient(180deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+          color: var(--neon-gold);
+          box-shadow:0 0 15px rgba(255, 215, 0, 0.2);
+          border: 1px solid var(--border-glow);
         }
+        .atl-item--active .atl-label { color: #ffffff; } /* White text for active label */
 
         .atl-icon{ position:relative; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
-                   filter:drop-shadow(0 3px 8px rgba(10,39,64,.18)); }
+                   filter:drop-shadow(0 3px 8px rgba(0,0,0,.3)); }
         .atl-badge{
           position:absolute; top:-6px; right:-6px; width:16px; height:16px;
           border-radius:999px; display:grid; place-items:center;
           font-size:10px; font-weight:700; line-height:1;
-          background:var(--atl-azure); color:var(--atl-navy);
+          background:var(--neon-gold); color:black;
         }
         .atl-label{ font-size:11px; font-weight:600; letter-spacing:.1px; }
 
         .atl-fab-wrap{ flex:1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .atl-fab{
           width:56px; height:56px; transform:translateY(-8px);
-          border-radius:999px; border:1px solid rgba(255,255,255,.7);
-          background:linear-gradient(180deg,var(--gold),var(--gold-2));
-          box-shadow:0 22px 36px rgba(212,175,55,.35);
+          border-radius:999px; border:1px solid rgba(255,255,255,.2);
+          background:linear-gradient(180deg, var(--neon-gold), #b8860b);
+          box-shadow:0 0 20px rgba(255, 215, 0, 0.4);
           display:grid; place-items:center;
         }
-        .atl-fab-wrap.is-active .atl-label{ color:var(--atl-navy); }
+        .atl-fab-wrap.is-active .atl-label{ color:var(--neon-gold); }
       `}</style>
     </>
   );

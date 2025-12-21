@@ -1,11 +1,12 @@
 // src/pages/ClientStart.tsx
 import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/Auth";
 
 export default function ClientStart() {
   const nav = useNavigate();
+  const location = useLocation();
   const { logout, switchGoogleAccount } = useAuth();
 
   // Atajos de teclado: Enter -> builder, P -> perfil
@@ -59,9 +60,18 @@ export default function ClientStart() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="btn btn-primary h-12 text-base font-semibold animate-pulse-slow"
-                onClick={() => nav("/builder")}
+                onClick={() => nav("/builder" + location.search)}
               >
                 ▶ Armar mi bebida
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="btn btn-secondary h-12 text-base font-semibold"
+                onClick={() => nav("/menu" + location.search)}
+              >
+                📜 Ver Carta (Comida y Calientes)
               </motion.button>
 
               <motion.button
@@ -105,6 +115,7 @@ export default function ClientStart() {
       <style>{`
         .btn { border-radius: 14px; padding: 0 14px; border: 1px solid rgba(255,255,255,.08); }
         .btn-primary { background: var(--brand); color: white; }
+        .btn-secondary { background: transparent; border: 1px solid var(--brand); color: var(--brand); }
         .btn-ghost { background: rgba(255,255,255,.08); color: var(--ink); }
         .btn-danger { background: #ef4444; color: #fff; }
         .animate-pulse-slow { animation: pulse 1.8s ease-in-out infinite; }

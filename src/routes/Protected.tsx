@@ -19,7 +19,7 @@ export default function Protected() {
   useEffect(() => {
     if (!didEnsureRef.current) {
       didEnsureRef.current = true;
-      ensureAuth().catch(() => {});
+      ensureAuth().catch(() => { });
     }
   }, []);
 
@@ -35,14 +35,14 @@ export default function Protected() {
           email: user.email ?? null,
           displayName: user.displayName ?? null,
         }),
-      ]).catch(() => {});
+      ]).catch(() => { });
     }
   }, [user?.uid, user?.email, user?.displayName]);
 
   // Espera auth
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">
         Cargando…
       </div>
     );

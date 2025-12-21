@@ -1,233 +1,359 @@
 /* src/index.css */
 /* =========================================
    Artemisa — index.css (Tailwind v4)
+   Theme: Cyberpunk / Atlantis (Dark Mode)
    ========================================= */
 
-/* 1) Tailwind v4: debe ir primero */
+/* 1) Tailwind v4 */
 @import "tailwindcss";
 
-/* 2) Variables de tema (Azul Claro + Dorado) */
-:root{
-  --blue-deep:#0f2a47;
-  --blue-soft:#f6fbff;
-  --blue-50:#eaf2ff;
+/* 2) Variables de tema (Cyberpunk / Atlantis) - DEFAULT DARK */
+:root {
+  /* Core Colors (Dark - Black & Gold) */
+  --bg-deep: #000000;
+  /* Pure Black */
+  --bg-card: #111111;
+  /* Very Dark Gray */
+  --bg-overlay: rgba(20, 20, 20, 0.95);
 
-  --gold:#d4af37;
-  --gold-2:#f5d97a;
-  --white:#ffffff;
+  /* Accents (Black & Gold Focus) */
+  --neon-cyan: #d4af37;
+  /* Gold (replacing Cyan for main accents) */
+  --neon-gold: #ffd700;
+  /* Bright Gold */
+  --neon-pink: #d4af37;
+  /* Gold variant */
+  --neon-blue: #333333;
+  /* Dark Gray (neutralizing blue) */
 
-  --ink:#0f172a;
-  --muted:#667085;
-  --line:#e5e7eb;
+  /* Text */
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  --text-dark: #000000;
 
-  --bg:var(--blue-soft);
-  --card:var(--white);
+  /* Borders */
+  --border-glow: rgba(212, 175, 55, 0.3);
+  /* Gold Glow */
+  --border-dim: rgba(255, 255, 255, 0.1);
 
-  --brand:var(--gold);
-  --brand-2:var(--blue-deep);
+  /* Semantic Mappings */
+  --bg: var(--bg-deep);
+  --card: var(--bg-card);
+  --ink: var(--text-main);
+  --muted: var(--text-muted);
+  --line: var(--border-dim);
 
-  --radius-xs:10px;
-  --radius-sm:14px;
-  --radius-md:20px;
-  --radius-lg:24px;
+  --brand: var(--neon-gold);
+  --brand-2: #b8860b;
+  /* Dark Goldenrod */
 
-  --shadow-xs:0 1px 2px rgba(16,24,40,.06);
-  --shadow-sm:0 6px 14px rgba(16,24,40,.08);
-  --shadow-md:0 10px 30px rgba(16,24,40,.10);
-  --shadow-lg:0 24px 48px rgba(16,24,40,.14);
+  /* Shadows */
+  --glow-xs: 0 0 5px rgba(255, 215, 0, 0.2);
+  --glow-sm: 0 0 10px rgba(255, 215, 0, 0.3);
+  --glow-md: 0 0 20px rgba(255, 215, 0, 0.4);
+  --glow-gold: 0 0 15px rgba(255, 215, 0, 0.3);
 
+  /* Layout */
   --nav-height: 84px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-bar-space: calc(var(--nav-height) + var(--safe-area-bottom));
 }
 
-/* Puedes variar el brand por rol en el futuro */
-html[data-role="client"]{ --brand:var(--gold); }
-html[data-role="owner"] { --brand:var(--gold); }
-html[data-role="worker"]{ --brand:var(--gold); }
+/* LIGHT MODE OVERRIDES */
+/* LIGHT MODE OVERRIDES */
+html.light {
+  /* Core Colors (Light) */
+  --bg-deep: #f6fbff;
+  /* Soft Blue White */
+  --bg-card: #ffffff;
+  --bg-overlay: rgba(255, 255, 255, 0.9);
 
-/* 3) Reseteos mínimos + estructura base */
-html,body,#root{ height:100%; }
-*{ box-sizing:border-box; }
+  /* Accents (Classic Artemisa) */
+  --neon-cyan: #0f2a47;
+  /* Deep Blue instead of Cyan */
+  --neon-gold: #d4af37;
+  /* Classic Gold */
+  --neon-pink: #b42318;
+  /* Red for alerts */
+  --neon-blue: #0f2a47;
 
-body{
-  position: relative;         /* crea contexto para ::before */
-  margin: 0;
-  background: #ffffff;        /* sin gradiente aquí; lo pinta ::before */
-  color: var(--ink);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Helvetica Neue", Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  padding-bottom: var(--bottom-bar-space);
-  min-height: 100%;
+  /* Text */
+  --text-main: #0f172a;
+  /* Ink */
+  --text-muted: #667085;
+  --text-dark: #ffffff;
+
+  /* Borders */
+  --border-glow: rgba(15, 42, 71, 0.1);
+  --border-dim: #e5e7eb;
+
+  /* Semantic Mappings */
+  --bg: var(--bg-deep);
+  --card: var(--bg-card);
+  --ink: var(--text-main);
+  --muted: var(--text-muted);
+  --line: var(--border-dim);
+
+  --brand: var(--neon-gold);
+  --brand-2: var(--neon-cyan);
+
+  /* Shadows (Soft) */
+  --glow-xs: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --glow-sm: 0 6px 14px rgba(16, 24, 40, 0.08);
+  --glow-md: 0 10px 30px rgba(16, 24, 40, 0.10);
+  --glow-gold: 0 10px 20px rgba(212, 175, 55, 0.2);
 }
 
-/* El root va por encima del pseudo-fondo */
-#root{ position: relative; z-index: 1; }
+/* Role-based overrides */
+html[data-role="client"] {
+  --brand: var(--neon-gold);
+}
 
-/* === FONDO GLOBAL CONTINUO ===
-   - Dos radiales + un linear de relleno, sin “transparent” duro para evitar líneas
-   - Vive en body ::before para cubrir toda la página
-*/
-body::before{
+html[data-role="owner"] {
+  --brand: var(--neon-cyan);
+}
+
+html[data-role="worker"] {
+  --brand: var(--neon-pink);
+}
+
+/* 3) Reseteos & Base */
+html,
+body,
+#root {
+  height: 100%;
+  background-color: var(--bg-deep);
+  /* Fix for 'cut' background */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  background: var(--bg-deep);
+  /* Dynamic background */
+  color: var(--text-main);
+  font-family: 'Orbitron', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: var(--bottom-bar-space);
+  min-height: 100%;
+  overflow-x: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* === FONDO GLOBAL (Cyberpunk Grid/Glow) === */
+body::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(
-      120% 85% at 50% -20%,
-      rgba(127,231,255,.55) 0%,
-      rgba(127,231,255,.30) 40%,
-      rgba(127,231,255,.12) 70%,
-      rgba(127,231,255,0) 100%
-    ),
-    radial-gradient(
-      120% 90% at 50% 120%,
-      rgba(195,255,241,.28) 0%,
-      rgba(195,255,241,.16) 45%,
-      rgba(195,255,241,.08) 70%,
-      rgba(195,255,241,0) 100%
-    ),
+    /* Grid Pattern - Very subtle in dark mode */
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center top;
+  opacity: 0.05;
+  /* Almost invisible */
+}
+
+/* Light mode background override */
+/* Light mode background override */
+html.light body::before {
+  background:
+    radial-gradient(120% 85% at 50% -20%, rgba(127, 231, 255, .4) 0%, rgba(127, 231, 255, 0) 100%),
     linear-gradient(180deg, #eafaff 0%, #f6fbff 45%, #ffffff 100%);
-  background-repeat: no-repeat, no-repeat, no-repeat;
-  background-size: 160% 80%, 160% 80%, 100% 100%;
-  background-position: center top, center bottom, center top;
+  background-size: 100% 100%;
+  opacity: 1;
 }
 
-/* Si el componente AtlBackground está montado, ocultar su capa base para evitar doble fondo */
-#atl-bg-root .atl-bg.base{ display: none !important; }
-
-/* 4) Contenedor de páginas y tarjetas */
-.container-app{ max-width:960px; margin:0 auto; padding:24px 16px; }
-.card{
-  background:var(--card);
-  border:1px solid var(--line);
-  border-radius:var(--radius-md);
-  padding:16px;
-  box-shadow:var(--shadow-md);
+/* 4) Componentes Base */
+.container-app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  background: transparent !important;
+  /* Ensure no white background */
 }
 
-/* 5) Controles básicos */
-.input{
-  width:100%;
-  border:1px solid #d0d5dd;
+.card {
+  background: rgba(10, 15, 28, 0.7);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--glow-xs);
+  backdrop-filter: blur(12px);
+}
+
+/* Inputs */
+.input {
+  width: 100%;
+  border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
-  padding:10px 12px;
-  background:#fff;
-  outline:none;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.2s ease;
 }
 
-.label{
-  font-size:.875rem;
-  color:#475467;
-  margin-bottom:.25rem;
+.input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 8px var(--border-glow);
 }
 
-.btn{
-  border:1px solid #d0d5dd;
-  background:#fff;
-  padding:10px 14px;
-  border-radius:var(--radius-sm);
-  cursor:pointer;
-  transition: box-shadow .15s ease, transform .06s ease;
-}
-.btn:hover{ box-shadow: var(--shadow-xs); }
-.btn:active{ transform: translateY(1px); }
-
-.btn-sm{ padding:8px 10px; border-radius:12px; font-size:.875rem; }
-.btn-ghost{
-  background:#fff;
-  border-color:#e5e7eb;
-  color:#0f2a47;
-}
-.btn-ghost:hover{
-  background:#f8fafc;
-  border-color:#e2e8f0;
-}
-.btn-danger{
-  background:#fff;
-  color:#b42318;
-  border-color:#fecaca;
-}
-.btn-danger:hover{
-  background:#fff5f5;
-  border-color:#fca5a5;
+.label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+  display: block;
 }
 
-.btn-primary{
-  background:linear-gradient(90deg,var(--gold),var(--gold-2));
-  color:var(--blue-deep);
-  border:none;
-  font-weight:700;
-  box-shadow:0 6px 16px rgba(212,175,55,.25);
+/* Buttons */
+.btn {
+  border: 1px solid var(--border-dim);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* 6) Tabla ligera */
-.table{ width:100%; border-collapse:separate; border-spacing:0; }
-.table thead th{ color:#667085; font-weight:600; padding:12px; text-align:left; }
-.table tbody td{ padding:12px; border-top:1px solid #f2f4f7; }
-
-/* 7) Bottom bar (dock) */
-[data-bottom-bar]{
-  background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.92));
-  border:1px solid var(--blue-50);
-  box-shadow:
-    0 12px 32px rgba(15,42,71,.12),
-    inset 0 1px 0 rgba(255,255,255,.6);
-  backdrop-filter:saturate(1.1) blur(6px);
+.btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-main);
+  box-shadow: var(--glow-xs);
 }
 
-.bottom-menu-item{
-  color:#476082;
-  transition:transform .08s ease, background .15s ease, color .15s ease;
-}
-.bottom-menu-item .icon{ width:22px; height:22px; line-height:0; }
-.bottom-menu-item .icon svg{ width:22px; height:22px; display:block; color:var(--blue-deep); }
-.bottom-menu-item .icon .icon-wrap{
-  display:inline-block;
-  filter: drop-shadow(0 2px 6px rgba(13,30,59,.16));
-  transition: filter .2s ease, transform .12s ease;
-}
-.bottom-menu-item.is-active{
-  background: linear-gradient(135deg, var(--gold), var(--gold-2));
-  color: var(--blue-deep);
-  box-shadow: 0 10px 22px rgba(212,175,55,.30), inset 0 1px 0 rgba(255,255,255,.45);
-}
-.bottom-menu-item.is-active .icon .icon-wrap{
-  transform: translateY(-1px);
-  filter: drop-shadow(0 10px 18px rgba(212,175,55,.40));
+.btn:active {
+  transform: translateY(1px);
 }
 
-/* 8) Utilidades */
-.hide-scrollbar{ scrollbar-width:none; }
-.hide-scrollbar::-webkit-scrollbar{ display:none; }
-/* 9) Dropdown accesible (CSS-only o controlado) */
-.dropdown{ position:relative; }
-.dropdown > [aria-haspopup="menu"]{ outline:none; }
-
-.dropdown-menu{
-  position:absolute; top:calc(100% + 6px); right:0; min-width:220px;
-  padding:6px; background:#fff; border:1px solid #e5e7eb; border-radius:12px;
-  box-shadow: var(--shadow-md); display:none; z-index:50;
-}
-/* Abre con :focus-within (CSS-only) */
-.dropdown:focus-within .dropdown-menu{ display:block; }
-/* O con clase .open si usas el componente <Dropdown/> controlado */
-.dropdown.open .dropdown-menu{ display:block; }
-
-.dropdown-item{
-  display:block; width:100%; text-align:left; border-radius:10px; padding:.5rem .625rem;
-}
-.dropdown-item:hover{ background:#f1f5f9; }
-
-/* 10) Tabla compacta (se usa en Bodega) */
-.table-compact td,.table-compact th{
-  padding:.5rem .75rem; border-bottom:1px solid #e5e7eb;
+.btn-primary {
+  background: linear-gradient(135deg, var(--brand), var(--neon-blue));
+  color: #000;
+  border: none;
+  box-shadow: var(--glow-sm);
 }
 
-/* 11) Estados de botón */
-.btn:disabled, .btn[disabled]{
-  opacity:.55; pointer-events:none; filter:grayscale(.1);
+.btn-primary:hover {
+  box-shadow: var(--glow-md);
+  filter: brightness(1.1);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.btn-danger {
+  border-color: rgba(255, 0, 0, 0.3);
+  color: #ff4d4d;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 0, 0, 0.1);
+  border-color: #ff4d4d;
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+}
+
+/* 5) Tablas */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table thead th {
+  color: var(--brand);
+  font-weight: 700;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-glow);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+}
+
+.table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-dim);
+  color: var(--text-main);
+}
+
+/* 6) Bottom Bar (Dock) */
+[data-bottom-bar] {
+  background: rgba(5, 5, 5, 0.85);
+  border-top: 1px solid var(--border-glow);
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+}
+
+.bottom-menu-item {
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.bottom-menu-item .icon svg {
+  color: currentColor;
+}
+
+.bottom-menu-item.is-active {
+  color: var(--brand);
+}
+
+.bottom-menu-item.is-active .icon .icon-wrap {
+  filter: drop-shadow(0 0 8px var(--brand));
+  transform: translateY(-2px);
+}
+
+/* 7) Dropdown */
+.dropdown-menu {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glow);
+  box-shadow: var(--glow-md);
+  color: var(--text-main);
+}
+
+.dropdown-item:hover {
+  background: rgba(0, 243, 255, 0.1);
+  color: var(--brand);
+}
+
+/* 8) Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-dim);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
 }

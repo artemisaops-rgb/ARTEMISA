@@ -1,36 +1,106 @@
-﻿:root{
-  --fz-ink:#0a2740;
-  --fz-stroke:#e6eef5;
-  --fz-card:#ffffff;
-  --fz-bg1:#e8f7ff;
-  --fz-bg2:#eefaf5;
-  --fz-accent:#24c7b7;
+﻿:root {
+  /* --- Palette Papa's --- */
+  --fz-purple: #6b46ff;
+  --fz-purple-dark: #4c2fb3;
+  --fz-purple-light: #8f75ff;
 
-  --fz-order:#1d4ed8;
-  --fz-build:#7c3aed;
-  --fz-mix:#0ea5e9;
-  --fz-top:#be123c;
+  --fz-orange: #f97316;
+  --fz-orange-dark: #c2410c;
+  --fz-orange-light: #fdba74;
 
-  --fz-radius:20px;
-  --fz-shadow:0 20px 40px rgba(10,39,64,.08);
+  --fz-teal: #24c7b7;
+  --fz-teal-dark: #115e59;
+  --fz-teal-light: #5eead4;
+
+  --fz-green: #84cc16;
+  --fz-green-dark: #4d7c0f;
+
+  --fz-pink: #ec4899;
+
+  --fz-cream: #fefce8;
+  --fz-paper: #fffbeb;
+
+  --fz-ink: #1e293b;
+  --fz-border: #0f172a; /* Thick cartoon border color */
+
+  /* --- Semantic --- */
+  --fz-bg-order: #e0f2fe; /* Light blue lobby */
+  --fz-bg-build: #f3e8ff; /* Light purple station */
+  --fz-bg-mix: #ffedd5;   /* Light orange station */
+  --fz-bg-top: #dbeafe;   /* Light blue station */
+
+  --fz-accent: var(--fz-purple);
+  --fz-radius: 16px;
+  --fz-shadow: 4px 4px 0px rgba(0,0,0,0.2); /* Hard shadow for cartoon feel */
 }
-*{box-sizing:border-box}
-body{color:var(--fz-ink); background:linear-gradient(180deg,var(--fz-bg1),var(--fz-bg2));}
-.fz-card{background:var(--fz-card); border:1px solid var(--fz-stroke); border-radius:var(--fz-radius); box-shadow:var(--fz-shadow);}
-.fz-btn{height:36px; border-radius:10px; border:1px solid #e2ebf2; background:#f7fbff; padding:0 12px; font-weight:800; cursor:pointer}
-.fz-btn.primary{background:var(--fz-accent); border-color:var(--fz-accent); color:#fff;}
-.fz-chip{border:1px solid var(--fz-stroke); border-radius:999px; padding:8px 10px; font-weight:800; background:#fff;}
-/* FX chorro global */
-.pour{position:absolute;inset:0;pointer-events:none}
-.pour::before{
-  content:""; position:absolute; top:0; left:var(--from-x); width:12px; height:0; border-radius:10px;
-  background:var(--pour-color); animation:pourAnim .9s ease forwards;
+
+* { box-sizing: border-box; }
+
+body {
+  color: var(--fz-ink);
+  background: #334155; /* Dark background behind the game area */
+  font-family: "Fredoka One", "Comic Sans MS", "Chalkboard SE", sans-serif; /* Round/Cartoon font */
 }
-@keyframes pourAnim{
-  0%{ transform:translateY(-60px); height:0; opacity:.0 }
-  20%{ opacity:1; height:40px }
-  100%{ transform:translate(calc(var(--to-x) - var(--from-x)), 160px); height:140px; opacity:0 }
+
+/* --- Cartoon Utilities --- */
+.fz-card {
+  background: white;
+  border: 3px solid var(--fz-border);
+  border-radius: var(--fz-radius);
+  box-shadow: var(--fz-shadow);
 }
-@media (prefers-reduced-motion: reduce){
-  .pour::before{ animation: none !important; }
+
+.fz-btn {
+  height: 44px;
+  border-radius: 12px;
+  border: 3px solid var(--fz-border);
+  background: white;
+  padding: 0 16px;
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+  transition: transform 0.1s, box-shadow 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.fz-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.fz-btn.primary {
+  background: var(--fz-green);
+  color: white;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+}
+
+.fz-btn.secondary {
+  background: var(--fz-orange);
+  color: white;
+}
+
+.fz-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.fz-btn.ghost:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* --- FX --- */
+.pour { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+.pour::before {
+  content: ""; position: absolute; top: 0; left: var(--from-x); width: 14px; height: 0; border-radius: 10px;
+  background: var(--pour-color); animation: pourAnim .6s ease forwards;
+  border: 2px solid rgba(0,0,0,0.1);
+}
+@keyframes pourAnim {
+  0% { transform: translateY(-60px); height: 0; opacity: 0; }
+  20% { opacity: 1; height: 60px; }
+  100% { transform: translate(calc(var(--to-x) - var(--from-x)), 200px); height: 180px; opacity: 0; }
 }

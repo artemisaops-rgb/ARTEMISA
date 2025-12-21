@@ -53,6 +53,8 @@ function GoogleGlyph() {
   );
 }
 
+import ThemeSwitch from "@/components/ThemeSwitch";
+
 export default function Login() {
   const { user, loginGoogle, loginEmail, logout } = useAuth();
   const nav = useNavigate();
@@ -67,6 +69,7 @@ export default function Login() {
   if (user) {
     return (
       <main className="atl-page">
+        <ThemeSwitch />
         <BackgroundOcean />
         <div className="atl-authed">
           <div className="atl-muted">
@@ -110,6 +113,7 @@ export default function Login() {
 
   return (
     <main className="atl-page">
+      <ThemeSwitch />
       <BackgroundOcean />
 
       {/* Card central tipo Rappi/DiDi (vidrio + CTA grande) */}
@@ -282,15 +286,29 @@ function BackgroundOcean() {
       <div className="quartz q2" />
       <div className="quartz q3" />
       <style>{`
+        :root {
+          /* Default (Dark) - Google Style: Deep Black/Invisible Ocean */
+          --ocean-grad-1: radial-gradient(60% 40% at 50% -10%, rgba(255,255,255,0.02), transparent 60%);
+          --ocean-grad-2: radial-gradient(60% 50% at 50% 115%, rgba(255,255,255,0.02), transparent 60%);
+          --wave-opacity: 0.05;
+        }
+        html.light {
+          /* Light Mode - Bright Ocean */
+          --ocean-grad-1: radial-gradient(60% 40% at 50% -10%, rgba(127,231,255,.55), transparent 60%);
+          --ocean-grad-2: radial-gradient(60% 50% at 50% 115%, rgba(195,255,241,.35), transparent 60%);
+          --wave-opacity: 0.5;
+        }
+
         .atl-bg.base{
           position:fixed; inset:0; z-index:-3;
           background:
-            radial-gradient(60% 40% at 50% -10%, rgba(127,231,255,.55), transparent 60%),
-            radial-gradient(60% 50% at 50% 115%, rgba(195,255,241,.35), transparent 60%);
+            var(--ocean-grad-1),
+            var(--ocean-grad-2);
+          background-color: var(--bg-deep); /* Ensure base is deep black in dark mode */
         }
         .atl-bg.wave-one, .atl-bg.wave-two{
           position:fixed; left:50%; transform:translateX(-50%); z-index:-2;
-          width:1200px; height:260px; border-radius:120px; filter: blur(40px); opacity:.5;
+          width:1200px; height:260px; border-radius:120px; filter: blur(40px); opacity:var(--wave-opacity);
           background:linear-gradient(90deg, var(--atl-azure), var(--atl-quartz));
         }
         .atl-bg.wave-one{ top:-120px; }

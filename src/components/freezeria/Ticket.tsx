@@ -12,49 +12,142 @@ export function Ticket({
   blendPct: number;
 }) {
   return (
-    <div className="ticket">
-      <div className="ticket-head">
-        <div className="dot" />
-        <div className="title">Orden</div>
-        <div className="size">{size || "—"}</div>
+    <div className="ticket-hanger">
+      <div className="clip" />
+      <div className="ticket-paper">
+        <div className="ticket-header">
+          <span className="ticket-id">#001</span>
+          <span className="ticket-role">CLIENTE</span>
+        </div>
+
+        <div className="ticket-body">
+          <div className="ticket-row size-row">
+            <span>TAMAÑO</span>
+            <strong>{size || "—"}</strong>
+          </div>
+
+          <div className="ticket-divider" />
+
+          <div className="ticket-items">
+            {items.length === 0 ? (
+              <div className="empty-msg">Vacío</div>
+            ) : (
+              items.map((it, i) => (
+                <div key={i} className="item-row">
+                  <span className="item-name">{it.name}</span>
+                  <span className="item-qty">x{it.qty}</span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="ticket-divider" />
+
+          {blendPct > 0 && (
+            <div className="ticket-row">
+              <span>MEZCLA</span>
+              <div className="mini-meter">
+                <div className="fill" style={{ width: `${blendPct}%` }} />
+              </div>
+            </div>
+          )}
+
+          <div className="ticket-total">
+            <span>TOTAL</span>
+            <span className="price">{total}</span>
+          </div>
+        </div>
       </div>
-
-      <div className="meter-mini">
-        <span>Chunky</span>
-        <div className="bar"><span style={{ width: `${blendPct}%` }} /></div>
-        <span>Smooth</span>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="muted">Aún no agregas ingredientes.</div>
-      ) : (
-        <ul className="ticket-list">
-          {items.map((it, i) => (
-            <li key={i}><span className="nm">{it.name}</span><span className="qt">{it.qty} {it.unit || "u"}</span></li>
-          ))}
-        </ul>
-      )}
-
-      <div className="price-row"><span>Total</span><b>{total}</b></div>
 
       <style>{`
-        .ticket{
-          background:#fff; border:1px solid #e6eef5; border-radius:20px; padding:12px;
-          box-shadow:0 20px 40px rgba(10,39,64,.08); height:fit-content
+        .ticket-hanger {
+          position: relative;
+          margin-top: -10px; /* Pull up into the rail */
+          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+          transform-origin: top center;
+          animation: swing 2s ease-in-out infinite alternate;
+          z-index: 100;
         }
-        .ticket-head{ display:grid; grid-template-columns:16px 1fr auto; gap:8px; align-items:center; margin-bottom:8px; }
-        .dot{ width:12px; height:12px; border-radius:999px; background:#0a2740; }
-        .title{ font-weight:900; }
-        .size{ font-weight:900; color:#24c7b7; }
-        .ticket-list{ list-style:none; padding:0; margin:8px 0; display:grid; gap:6px; }
-        .ticket-list li{ display:flex; justify-content:space-between; border-bottom:1px dashed #e6eef5; padding-bottom:6px; }
-        .ticket-list .nm{ font-weight:700; }
-        .ticket-list .qt{ color:#6b8594; }
-        .price-row{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:14px; }
-        .meter-mini{ display:grid; grid-template-columns:auto 1fr auto; gap:6px; align-items:center; margin:8px 0; }
-        .meter-mini .bar{ height:6px; border-radius:999px; background:#e2ebf2; overflow:hidden; }
-        .meter-mini .bar span{ display:block; height:100%; background:linear-gradient(90deg,#f59e0b,#34d399); }
-        .muted{ color:#6b8594; font-size:12px; }
+        @keyframes swing { from { transform: rotate(-1deg); } to { transform: rotate(1deg); } }
+
+        .clip {
+          width: 40px; height: 12px;
+          background: #94a3b8;
+          margin: 0 auto;
+          border-radius: 4px;
+          border: 2px solid #475569;
+          position: relative;
+          z-index: 2;
+        }
+
+        .ticket-paper {
+          background: #fffbeb; /* Cream paper */
+          width: 160px;
+          min-height: 200px;
+          padding: 12px;
+          border-radius: 2px;
+          font-family: "Courier New", monospace;
+          position: relative;
+          top: -6px;
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 95% 98%, 90% 100%, 85% 98%, 80% 100%, 75% 98%, 70% 100%, 65% 98%, 60% 100%, 55% 98%, 50% 100%, 45% 98%, 40% 100%, 35% 98%, 30% 100%, 25% 98%, 20% 100%, 15% 98%, 10% 100%, 5% 98%, 0 100%);
+        }
+
+        .ticket-header {
+          border-bottom: 2px dashed #cbd5e1;
+          padding-bottom: 8px;
+          margin-bottom: 8px;
+          text-align: center;
+          display: flex;
+          justify-content: space-between;
+          font-weight: bold;
+          color: #64748b;
+          font-size: 12px;
+        }
+
+        .ticket-role { color: #000; }
+
+        .ticket-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+          font-size: 13px;
+        }
+
+        .size-row { font-size: 14px; color: #4c2fb3; }
+
+        .ticket-divider {
+          height: 1px;
+          background: repeating-linear-gradient(90deg, #cbd5e1 0 4px, transparent 4px 8px);
+          margin: 8px 0;
+        }
+
+        .item-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 2px;
+        }
+        
+        .empty-msg { text-align: center; color: #cbd5e1; font-style: italic; }
+
+        .mini-meter {
+          width: 60px; height: 6px; background: #e2e8f0; border-radius: 4px; overflow: hidden;
+        }
+        .mini-meter .fill { height: 100%; background: #22c55e; }
+
+        .ticket-total {
+          margin-top: 12px;
+          background: #fef3c7;
+          padding: 4px;
+          border-radius: 4px;
+          display: flex;
+          justify-content: space-between;
+          font-weight: 900;
+          border: 1px solid #fcd34d;
+        }
+        .price { color: #d97706; }
       `}</style>
     </div>
   );

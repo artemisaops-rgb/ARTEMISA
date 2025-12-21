@@ -84,8 +84,8 @@ export default function Ventas() {
   const { mode } = useOwnerMode();
 
   const ownerMonitor = realRole === "owner" && mode === "monitor";
-  const ownerTotal   = realRole === "owner" && mode === "control";
-  const isWorker     = realRole === "worker";
+  const ownerTotal = realRole === "owner" && mode === "control";
+  const isWorker = realRole === "worker";
 
   const ORG_ID = getOrgId();
 
@@ -121,12 +121,12 @@ export default function Ventas() {
         preset === "custom"
           ? `${customFrom || "?"} → ${customTo || "?"}`
           : preset === "today"
-          ? "Hoy"
-          : preset === "yesterday"
-          ? "Ayer"
-          : preset === "7d"
-          ? "Últimos 7 días"
-          : "Este mes",
+            ? "Hoy"
+            : preset === "yesterday"
+              ? "Ayer"
+              : preset === "7d"
+                ? "Últimos 7 días"
+                : "Este mes",
     };
   }, [preset, customFrom, customTo]);
 
@@ -151,8 +151,8 @@ export default function Ventas() {
             v?.createdAt && typeof v.createdAt?.toDate === "function"
               ? (v.createdAt as Timestamp)
               : v?.at && typeof v.at?.toDate === "function"
-              ? (v.at as Timestamp)
-              : null;
+                ? (v.at as Timestamp)
+                : null;
           const deliveredAt: Timestamp | null =
             v?.deliveredAt && typeof v.deliveredAt?.toDate === "function"
               ? (v.deliveredAt as Timestamp)
@@ -167,6 +167,30 @@ export default function Ventas() {
             items: Array.isArray(v.items) ? v.items : [],
           });
         });
+
+        // Merge with local DEV orders
+        try {
+          const localRaw = JSON.parse(localStorage.getItem("orders:dev") || "[]");
+          const localOrders = localRaw.map((o: any) => ({
+            ...o,
+            createdAt: o.createdAt ? { toDate: () => new Date(o.createdAt) } : null, // Mock Timestamp
+            items: o.items || [],
+          }));
+          // Filter by range if needed, or just add all for now since it's dev
+          // Simple filter:
+          const validLocal = localOrders.filter((o: any) => {
+            const t = o.createdAt?.toDate().getTime() || 0;
+            return t >= range.from.toMillis() && t < range.to.toMillis();
+          });
+          xs.push(...validLocal);
+          // Re-sort
+          xs.sort((a, b) => {
+            const ta = a.createdAt?.toDate().getTime() || 0;
+            const tb = b.createdAt?.toDate().getTime() || 0;
+            return tb - ta;
+          });
+        } catch (e) { console.warn("Error loading local orders", e); }
+
         setOrders(xs);
       },
       (e: any) => {
@@ -249,9 +273,9 @@ export default function Ventas() {
             }
             title={
               f === "pending" ? "Aún sin entregar"
-              : f === "delivered" ? "Entregadas"
-              : f === "canceled" ? "Anuladas"
-              : "Todas del rango"
+                : f === "delivered" ? "Entregadas"
+                  : f === "canceled" ? "Anuladas"
+                    : "Todas del rango"
             }
           >
             {f === "pending" ? "Pendiente" : f === "delivered" ? "Entregada" : f === "canceled" ? "Anulada" : "Todas"}
@@ -282,8 +306,8 @@ export default function Ventas() {
 
         // Permisos UI por fila basados en MODO
         const canDeliverUI = !ownerMonitor && (ownerTotal || isWorker) && o.status === "pending";
-        const canCancelUI  = !ownerMonitor && ownerTotal && o.status === "pending";
-        const canDeleteUI  = !ownerMonitor && ownerTotal && o.status !== "delivered";
+        const canCancelUI = !ownerMonitor && ownerTotal && o.status === "pending";
+        const canDeleteUI = !ownerMonitor && ownerTotal && o.status !== "delivered";
 
         return (
           <div key={o.id} className="bg-white border rounded-2xl p-4">
@@ -307,8 +331,8 @@ export default function Ventas() {
                     (o.status === "pending"
                       ? "bg-amber-50 text-amber-700"
                       : o.status === "delivered"
-                      ? "bg-green-50 text-green-700"
-                      : "bg-slate-100 text-slate-600")
+                        ? "bg-green-50 text-green-700"
+                        : "bg-slate-100 text-slate-600")
                   }
                 >
                   {o.status === "pending" ? "Pendiente" : o.status === "delivered" ? "Entregada" : "Anulada"}

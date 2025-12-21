@@ -43,12 +43,14 @@ import RoleGuard from "@/routes/RoleGuard";
 import NavBar from "@/components/NavBar";
 import AtlBackground from "@/components/AtlBackground";
 import RoleSwitch from "@/components/RoleSwitch";
-import ModeSwitch from "@/components/ModeSwitch";
+// ModeSwitch removed
 import SupervisionBanner from "@/components/SupervisionBanner";
+import ThemeSwitch from "@/components/ThemeSwitch"; // [NEW]
 
 /* Para decidir destinos por rol */
 import { useAuth } from "@/contexts/Auth";
 import { useRole } from "@/hooks/useRole";
+import { ThemeProvider } from "@/contexts/ThemeContext"; // [NEW]
 
 // Shell con NavBar solo para worker/owner
 function Shell() {
@@ -66,9 +68,9 @@ function Shell() {
         <Outlet />
       </main>
 
-      {/* Toggles arriba a la derecha (solo Owner ve ambos) */}
+      {/* Toggles */}
+      <ThemeSwitch /> {/* [NEW] */}
       <RoleSwitch />
-      <ModeSwitch />
 
       {showNav && <NavBar />}
     </div>
@@ -85,70 +87,73 @@ function HomeDecider() {
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-6">Cargando…</div>}>
-      <Routes>
-        {/* Públicas */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/legal/privacidad" element={<Privacidad />} />
-        <Route path="/legal/terminos" element={<Terminos />} />
+    <ThemeProvider> {/* [NEW] */}
+      <Suspense fallback={<div className="p-6">Cargando…</div>}>
+        <Routes>
+          {/* Públicas */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/legal/privacidad" element={<Privacidad />} />
+          <Route path="/legal/terminos" element={<Terminos />} />
 
-        {/* Raíz decide según rol */}
-        <Route path="/" element={<HomeDecider />} />
+          {/* Raíz decide según rol */}
+          <Route path="/" element={<HomeDecider />} />
 
-        {/* Protegidas */}
-        <Route element={<Protected />}>
-          <Route element={<Shell />}>
-            {/* Comunes */}
-            <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
-              <Route path="/menu" element={<Menu />} />
-              <Route path="/mas" element={<Mas />} />
-              <Route path="/builder" element={<BuilderClient />} />
+          {/* Protegidas */}
+          <Route element={<Protected />}>
+            <Route element={<Shell />}>
+              {/* Comunes */}
+              <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
+                <Route path="/menu" element={<Menu />} />
+                <Route path="/mas" element={<Mas />} />
+              </Route>
+
+              {/* Solo Cliente */}
+              <Route element={<RoleGuard allow={["client"]} />}>
+                <Route path="/start" element={<ClientStart />} />
+                <Route path="/cliente" element={<ClienteHome />} />
+                <Route path="/builder" element={<BuilderClient />} />
+              </Route>
+
+              {/* Staff */}
+              <Route element={<RoleGuard allow={["worker", "owner"]} />}>
+                <Route path="/carrito" element={<Carrito />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/ventas" element={<Ventas />} />
+                <Route path="/bodega" element={<Bodega />} />
+                <Route path="/productos" element={<Productos />} />
+                <Route path="/compras" element={<Compras />} />
+                <Route path="/compras/:purchaseId" element={<ComprasDetalle />} />
+                <Route path="/horarios" element={<Horarios />} />
+                <Route path="/apertura" element={<Apertura />} />
+                <Route path="/caja" element={<Caja />} />
+                <Route path="/tareas" element={<Tareas />} />
+                <Route path="/proveedores" element={<Proveedores />} />
+                <Route path="/kiosk" element={<Kiosk />} />
+                <Route path="/worker/builder" element={<BuilderClient source="worker" />} />
+              </Route>
+
+              {/* Solo Owner */}
+              <Route element={<RoleGuard allow={["owner"]} />}>
+                <Route path="/estadisticas" element={<Estadisticas />} />
+                <Route path="/exportes" element={<Exportes />} />
+                <Route path="/bootstrap" element={<Bootstrap />} />
+                <Route path="/admin-seed" element={<AdminSeed />} />
+                <Route path="/dev-seed" element={<DevSeed />} />
+                <Route path="/historial" element={<Historial />} />
+                <Route path="/admin/builder" element={<BuilderConfigPage />} />
+                <Route path="/presets" element={<Presets />} />
+              </Route>
+
+              {/* Compat */}
+              <Route path="/cierre" element={<Navigate to="/caja" replace />} />
+              <Route path="/stats" element={<Navigate to="/estadisticas" replace />} />
             </Route>
-
-            {/* Solo Cliente */}
-            <Route element={<RoleGuard allow={["client"]} />}>
-              <Route path="/start" element={<ClientStart />} />
-              <Route path="/cliente" element={<ClienteHome />} />
-            </Route>
-
-            {/* Staff */}
-            <Route element={<RoleGuard allow={["worker", "owner"]} />}>
-              <Route path="/carrito" element={<Carrito />} />
-              <Route path="/clientes" element={<Clientes />} />
-              <Route path="/ventas" element={<Ventas />} />
-              <Route path="/bodega" element={<Bodega />} />
-              <Route path="/productos" element={<Productos />} />
-              <Route path="/compras" element={<Compras />} />
-              <Route path="/compras/:purchaseId" element={<ComprasDetalle />} />
-              <Route path="/horarios" element={<Horarios />} />
-              <Route path="/apertura" element={<Apertura />} />
-              <Route path="/caja" element={<Caja />} />
-              <Route path="/tareas" element={<Tareas />} />
-              <Route path="/proveedores" element={<Proveedores />} />
-              <Route path="/kiosk" element={<Kiosk />} />
-            </Route>
-
-            {/* Solo Owner */}
-            <Route element={<RoleGuard allow={["owner"]} />}>
-              <Route path="/estadisticas" element={<Estadisticas />} />
-              <Route path="/exportes" element={<Exportes />} />
-              <Route path="/bootstrap" element={<Bootstrap />} />
-              <Route path="/admin-seed" element={<AdminSeed />} />
-              <Route path="/dev-seed" element={<DevSeed />} />
-              <Route path="/historial" element={<Historial />} />
-              <Route path="/admin/builder" element={<BuilderConfigPage />} />
-              <Route path="/presets" element={<Presets />} />
-            </Route>
-
-            {/* Compat */}
-            <Route path="/cierre" element={<Navigate to="/caja" replace />} />
-            <Route path="/stats" element={<Navigate to="/estadisticas" replace />} />
           </Route>
-        </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </ThemeProvider>
   );
 }

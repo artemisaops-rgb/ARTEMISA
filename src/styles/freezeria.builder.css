@@ -1,52 +1,193 @@
-﻿/* Pared + riel */
-.stage{ border:1px solid #e6eef5; border-radius:20px; min-height:640px; position:relative; overflow:hidden; box-shadow:0 20px 40px rgba(10,39,64,.08) }
-.stage.order{ background:linear-gradient(180deg,#eaf6ff,#ffffff) }
-.stage.prep{
+﻿/* --- Layout Grid --- */
+.game-container {
+  display: grid;
+  grid-template-rows: 80px 1fr 70px;
+  /* Rail - Stage - Tabs */
+  height: 100vh;
+  max-width: 100vw;
+  overflow: hidden;
+  background: #1e293b;
+}
+
+/* --- Top Rail (Tickets) --- */
+.ticket-rail {
+  background: #475569;
+  border-bottom: 4px solid #334155;
+  display: flex;
+  align-items: flex-start;
+  /* Items hang from top */
+  padding: 0 16px;
+  gap: 12px;
+  overflow-x: auto;
+  box-shadow: inset 0 -4px 10px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 20;
+}
+
+.ticket-rail::-webkit-scrollbar {
+  height: 0;
+}
+
+/* --- Main Stage --- */
+.stage {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stage Backgrounds */
+.stage.order {
   background:
-   radial-gradient(circle at 10% 0%, rgba(255,255,255,.22), transparent 30%),
-   radial-gradient(circle at 90% 0%, rgba(255,255,255,.22), transparent 30%),
-   linear-gradient(180deg,#6b46ff 0 140px, #5b40e7 140px 160px, #3e7bdc 160px);
+    radial-gradient(circle at 50% 120%, #f0f9ff 20%, transparent 60%),
+    linear-gradient(180deg, #bae6fd 0%, #7dd3fc 100%);
 }
-.stage.mix{
+
+.stage.prep {
   background:
-   radial-gradient(circle at 10% 0%, rgba(255,255,255,.22), transparent 30%),
-   radial-gradient(circle at 90% 0%, rgba(255,255,255,.22), transparent 30%),
-   linear-gradient(180deg,#f2a54a,#e9891d);
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 20px, transparent 20px 40px),
+    linear-gradient(180deg, #a855f7 0%, #7c3aed 100%);
 }
-.stage.top{ background:linear-gradient(180deg,#3f44e8,#2bb3ff) }
-.stage::before{ /* patrón rombos */
-  content:""; position:absolute; inset:0;
-  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 20px, transparent 20px 40px),
-                    repeating-linear-gradient(-45deg, rgba(0,0,0,.07) 0 20px, transparent 20px 40px);
-  mix-blend-mode:soft-light; opacity:.4; pointer-events:none;
+
+.stage.mix {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.2) 2px, transparent 2px) 0 0 / 20px 20px,
+    linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
 }
-.wall-rail{ position:absolute; left:0; right:0; top:140px; height:20px; background:linear-gradient(#e1e7ef,#cfd7e2); border-top:1px solid rgba(0,0,0,.1); box-shadow:inset 0 2px 0 rgba(255,255,255,.5) }
-.cup-hold{ position:absolute; left:50%; transform:translateX(-50%); top:165px; z-index:2 }
 
-/* Orden */
-.order-station{ padding:18px }
-.order-station h2{ font-size:18px; font-weight:900; margin:6px 0 12px }
-.size-rail{ display:flex; gap:10px; flex-wrap:wrap }
-.size-pill{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:16px; border:1px solid #e6eef5; background:#f9fcff; font-weight:800 }
-.size-pill.on{ border-color:#24c7b7; box-shadow:0 8px 22px rgba(36,199,183,.18); background:#eafffb }
-.size-pill .cup-ico{ width:14px; height:18px; border-radius:4px 4px 10px 10px; background:linear-gradient(#fff,#dbe9f2); border:1px solid #bfd5e4; display:inline-block }
-.size-pill .price{ margin-left:8px; font-weight:700 }
-.order-cta{ margin-top:8px }
+.stage.top {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1) 25%, transparent 25%) -10px 0,
+    linear-gradient(225deg, rgba(255, 255, 255, 0.1) 25%, transparent 25%) -10px 0,
+    linear-gradient(315deg, rgba(255, 255, 255, 0.1) 25%, transparent 25%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.1) 25%, transparent 25%);
+  background-size: 40px 40px;
+  background-color: #3b82f6;
+}
 
-/* Prep (máquina + juego) */
-.prep-wrap{ position:relative; padding:14px }
-.prep-grid{ display:grid; grid-template-columns:1fr 320px; align-items:start; gap:12px; }
-.disp-row{ display:flex; gap:12px; align-items:flex-end; padding:0 8px }
-.prep-title{ color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.5); margin:6px 0 }
-.game-col{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); border-radius:12px; padding:10px; }
-.prep-actions{ position:absolute; left:18px; right:18px; bottom:18px; display:flex; justify-content:space-between; }
-.btn-trash{ background:#b91c1c; color:#fff; font-weight:900; border:none; border-radius:10px; padding:12px 18px; box-shadow:0 3px 0 #881515 }
-.btn-finish{ background:#179c00; color:#fff; font-weight:900; border:none; border-radius:10px; padding:12px 18px; box-shadow:0 3px 0 #0f6d00 }
+/* --- Bottom Tabs --- */
+.station-tabs {
+  background: #334155;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-top: 4px solid #1e293b;
+  z-index: 30;
+}
 
-/* Mix */
-.mix-wrap{ padding:18px }
-.mix-meter{ display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; margin:14px 0 }
-.mix-meter .bar{ height:10px; border-radius:999px; background:rgba(255,255,255,.55); overflow:hidden; box-shadow:inset 0 1px 0 rgba(0,0,0,.1) }
-.mix-meter .bar span{ display:block; height:100%; background:linear-gradient(90deg,#f97316,#8b5cf6,#0ea5e9) }
+.tab-btn {
+  flex: 1;
+  max-width: 120px;
+  height: 100%;
+  border: 3px solid rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  background: #475569;
+  color: #94a3b8;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s;
+}
 
-/* Ticket y Dock (igual que antes) */
+.tab-btn.active {
+  background: white;
+  color: var(--fz-ink);
+  border-color: white;
+  transform: translateY(-12px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+}
+
+.tab-btn.active.order {
+  background: var(--fz-bg-order);
+  color: #0369a1;
+}
+
+.tab-btn.active.prep {
+  background: var(--fz-bg-build);
+  color: #7e22ce;
+}
+
+.tab-btn.active.mix {
+  background: var(--fz-bg-mix);
+  color: #c2410c;
+}
+
+.tab-btn.active.top {
+  background: var(--fz-bg-top);
+  color: #1d4ed8;
+}
+
+/* --- Specific Station Styles --- */
+.order-lobby {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.lobby-card {
+  background: white;
+  padding: 24px;
+  border-radius: 20px;
+  border: 4px solid var(--fz-border);
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.15);
+  width: 100%;
+  text-align: center;
+}
+
+.size-selector {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.size-opt {
+  padding: 16px;
+  border: 3px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 800;
+  transition: all 0.1s;
+}
+
+.size-opt.selected {
+  border-color: var(--fz-teal);
+  background: #ccfbf1;
+  transform: scale(1.05);
+  box-shadow: 0 4px 0 var(--fz-teal-dark);
+}
+
+/* Prep Station Grid */
+.prep-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  /* Cup area - Machine */
+  height: 100%;
+  padding: 20px;
+  gap: 20px;
+  align-items: end;
+}
+
+.cup-area {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  padding-bottom: 40px;
+}
