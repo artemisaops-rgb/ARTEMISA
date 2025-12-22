@@ -24,6 +24,7 @@ type Ctx = {
   dec: (cartKey: string) => void;
   remove: (cartKey: string) => void;
   clear: () => void;
+  setQty: (cartKey: string, q: number) => void;
 };
 
 const CartCtx = createContext<Ctx | null>(null);
@@ -102,6 +103,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .filter((x) => (x.qty || 0) > 0)
     );
 
+  const setQty = (cartKey: string, q: number) =>
+    setItems((prev) =>
+      prev.map((x) => (x.id === cartKey ? { ...x, qty: Math.max(0, q) } : x))
+    );
+
   const remove = (cartKey: string) =>
     setItems((prev) => prev.filter((x) => x.id !== cartKey));
 
@@ -113,7 +119,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <CartCtx.Provider value={{ items, total, addProduct, inc, dec, remove, clear }}>
+    <CartCtx.Provider value={{ items, total, addProduct, inc, dec, remove, clear, setQty }}>
       {children}
     </CartCtx.Provider>
   );

@@ -85,75 +85,115 @@ function HomeDecider() {
   return <Navigate to={role === "client" ? "/start" : "/menu"} replace />;
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: any) {
+    console.error("Uncaught error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl text-center border border-red-100">
+            <div className="text-4xl mb-4">😿</div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Algo salió mal</h2>
+            <p className="text-sm text-slate-500 mb-6 font-mono bg-slate-100 p-3 rounded">
+              {this.state.error?.message || "Error desconocido"}
+            </p>
+            <button
+              onClick={() => {
+                sessionStorage.clear();
+                window.location.href = "/";
+              }}
+              className="px-6 py-2 bg-[var(--brand,#f97316)] text-white rounded-full font-medium hover:opacity-90 transition-opacity"
+            >
+              Reiniciar Aplicación
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
     <ThemeProvider> {/* [NEW] */}
-      <Suspense fallback={<div className="p-6">Cargando…</div>}>
-        <Routes>
-          {/* Públicas */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/legal/privacidad" element={<Privacidad />} />
-          <Route path="/legal/terminos" element={<Terminos />} />
+      <ErrorBoundary>
+        <Suspense fallback={<div className="p-6">Cargando…</div>}>
+          <Routes>
+            {/* Públicas */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/legal/privacidad" element={<Privacidad />} />
+            <Route path="/legal/terminos" element={<Terminos />} />
 
-          {/* Raíz decide según rol */}
-          <Route path="/" element={<HomeDecider />} />
+            {/* Raíz decide según rol */}
+            <Route path="/" element={<HomeDecider />} />
 
-          {/* Protegidas */}
-          <Route element={<Protected />}>
-            <Route element={<Shell />}>
-              {/* Comunes */}
-              <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
-                <Route path="/menu" element={<Menu />} />
-                <Route path="/mas" element={<Mas />} />
+            {/* Protegidas */}
+            <Route element={<Protected />}>
+              <Route element={<Shell />}>
+                {/* Comunes */}
+                <Route element={<RoleGuard allow={["client", "worker", "owner"]} />}>
+                  <Route path="/menu" element={<Menu />} />
+                  <Route path="/mas" element={<Mas />} />
+                </Route>
+
+                {/* Solo Cliente */}
+                <Route element={<RoleGuard allow={["client"]} />}>
+                  <Route path="/start" element={<ClientStart />} />
+                  <Route path="/cliente" element={<ClienteHome />} />
+                  <Route path="/builder" element={<BuilderClient />} />
+                </Route>
+
+                {/* Staff */}
+                <Route element={<RoleGuard allow={["worker", "owner"]} />}>
+                  <Route path="/carrito" element={<Carrito />} />
+                  <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/ventas" element={<Ventas />} />
+                  <Route path="/bodega" element={<Bodega />} />
+                  <Route path="/productos" element={<Productos />} />
+                  <Route path="/compras" element={<Compras />} />
+                  <Route path="/compras/:purchaseId" element={<ComprasDetalle />} />
+                  <Route path="/horarios" element={<Horarios />} />
+                  <Route path="/apertura" element={<Apertura />} />
+                  <Route path="/caja" element={<Caja />} />
+                  <Route path="/tareas" element={<Tareas />} />
+                  <Route path="/proveedores" element={<Proveedores />} />
+                  <Route path="/kiosk" element={<Kiosk />} />
+                  <Route path="/worker/builder" element={<BuilderClient source="worker" />} />
+                </Route>
+
+                {/* Solo Owner */}
+                <Route element={<RoleGuard allow={["owner"]} />}>
+                  <Route path="/estadisticas" element={<Estadisticas />} />
+                  <Route path="/exportes" element={<Exportes />} />
+                  <Route path="/bootstrap" element={<Bootstrap />} />
+                  <Route path="/admin-seed" element={<AdminSeed />} />
+                  <Route path="/dev-seed" element={<DevSeed />} />
+                  <Route path="/historial" element={<Historial />} />
+                  <Route path="/admin/builder" element={<BuilderConfigPage />} />
+                  <Route path="/presets" element={<Presets />} />
+                </Route>
+
+                {/* Compat */}
+                <Route path="/cierre" element={<Navigate to="/caja" replace />} />
+                <Route path="/stats" element={<Navigate to="/estadisticas" replace />} />
               </Route>
-
-              {/* Solo Cliente */}
-              <Route element={<RoleGuard allow={["client"]} />}>
-                <Route path="/start" element={<ClientStart />} />
-                <Route path="/cliente" element={<ClienteHome />} />
-                <Route path="/builder" element={<BuilderClient />} />
-              </Route>
-
-              {/* Staff */}
-              <Route element={<RoleGuard allow={["worker", "owner"]} />}>
-                <Route path="/carrito" element={<Carrito />} />
-                <Route path="/clientes" element={<Clientes />} />
-                <Route path="/ventas" element={<Ventas />} />
-                <Route path="/bodega" element={<Bodega />} />
-                <Route path="/productos" element={<Productos />} />
-                <Route path="/compras" element={<Compras />} />
-                <Route path="/compras/:purchaseId" element={<ComprasDetalle />} />
-                <Route path="/horarios" element={<Horarios />} />
-                <Route path="/apertura" element={<Apertura />} />
-                <Route path="/caja" element={<Caja />} />
-                <Route path="/tareas" element={<Tareas />} />
-                <Route path="/proveedores" element={<Proveedores />} />
-                <Route path="/kiosk" element={<Kiosk />} />
-                <Route path="/worker/builder" element={<BuilderClient source="worker" />} />
-              </Route>
-
-              {/* Solo Owner */}
-              <Route element={<RoleGuard allow={["owner"]} />}>
-                <Route path="/estadisticas" element={<Estadisticas />} />
-                <Route path="/exportes" element={<Exportes />} />
-                <Route path="/bootstrap" element={<Bootstrap />} />
-                <Route path="/admin-seed" element={<AdminSeed />} />
-                <Route path="/dev-seed" element={<DevSeed />} />
-                <Route path="/historial" element={<Historial />} />
-                <Route path="/admin/builder" element={<BuilderConfigPage />} />
-                <Route path="/presets" element={<Presets />} />
-              </Route>
-
-              {/* Compat */}
-              <Route path="/cierre" element={<Navigate to="/caja" replace />} />
-              <Route path="/stats" element={<Navigate to="/estadisticas" replace />} />
             </Route>
-          </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }

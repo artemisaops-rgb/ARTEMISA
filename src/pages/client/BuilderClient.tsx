@@ -698,351 +698,352 @@ export default function BuilderClient({ source = "client-app" }: { source?: "cli
       return { ...m, [id]: next };
     });
   }
-  setQtyById({}); setBlendPct(0); setIsMixing(false); setSizeId(null);
-  setCategoryIndex(0); setSelectedItemId(null); setStation("prep"); setCarryTop(null);
-}
-
-// hielo visual
-const iceItemId = items.find((i) => roleOfItem(i) === "ice")?.id ?? null;
-const iceQty = (iceItemId ? qtyById[iceItemId] : 0) || 0;
-const iceCubes = Math.max(0, Math.min(12, Math.round(iceQty / 50) + (iceQty > 0 ? 2 : 0)));
-
-// orden de categorías
-useEffect(() => {
-  const sequence: MachineCategory[] = [];
-  (["ice", "liquid", "powder", "condensed"] as const).forEach((cat) => {
-    let itemIds: string[] = [];
-    if (cat === "ice") itemIds = items.filter((it) => roleOfItem(it) === "ice").map((it) => it.id as string);
-    else if (cat === "liquid") itemIds = items.filter((it) => (roleOfItem(it) === "liquid" || roleOfItem(it) === "sparkling") && (it.unit as SvcUnit) === "ml").map((it) => it.id as string);
-    else if (cat === "powder") itemIds = items.filter((it) => roleOfItem(it) === "mixable" && (it.unit as SvcUnit) === "g").map((it) => it.id as string);
-    else if (cat === "condensed") itemIds = items.filter((it) => it.id === "cond").map((it) => it.id as string);
-    if (itemIds.length > 0) { const info = CATEGORY_INFO[cat]; sequence.push({ id: cat, label: info.label, color: info.color, emoji: info.emoji, items: itemIds }); }
-  });
-  setCategorySequence(sequence); setCategoryIndex(0); setSelectedItemId(null);
-}, [items]);
-
-// seleccionar siempre el primero
-useEffect(() => {
-  if (!categorySequence.length) return;
-  if (categoryIndex >= categorySequence.length) return;
-  const currentCat = categorySequence[categoryIndex];
-  setSelectedItemId(currentCat.items[0] || null);
-}, [categoryIndex, categorySequence]);
-
-// llegada a categoría → posicionar cabezal
-useEffect(() => {
-  if (!categorySequence.length || station !== "prep") return;
-  const cat = categorySequence[categoryIndex];
-  setCarX(slotXFor(cat?.items, selectedItemId));
-  setMachinePhase("arrive");
-  const t1 = setTimeout(() => { setCarLowered(true); setMachinePhase("ready"); }, 280);
-  return () => { clearTimeout(t1); };
-}, [categorySequence, categoryIndex, station, selectedItemId]);
-
-useEffect(() => {
-  if (station !== "prep") return;
-  const cat = categorySequence[categoryIndex];
-  if (!cat) return;
-  setCarX(slotXFor(cat.items, selectedItemId));
-}, [selectedItemId, station, categoryIndex, categorySequence]);
-
-function fireArcFromEl(fromEl: HTMLElement, color = "#ec4899") {
-  const cup = cupRef.current; if (!cup) return;
-  const fr = fromEl.getBoundingClientRect(), to = cup.getBoundingClientRect();
-  const from = { x: fr.left + fr.width / 2, y: fr.top + fr.height / 2 };
-  const midX = to.left + to.width / 2, midY = to.top + 30;
-  setArc({ from, to: { x: midX, y: midY }, color }); setTimeout(() => setArc(null), 900);
-}
-
-// loop mix
-useEffect(() => {
-  if (!isMixing) { if (mixTimer.current) { clearInterval(mixTimer.current); mixTimer.current = null; } return; }
-  mixTimer.current = setInterval(() => setBlendPct((p) => (p >= 100 ? 100 : p + 1)), 130);
-  return () => { if (mixTimer.current) clearInterval(mixTimer.current); };
-}, [isMixing]);
-
-// Helper: asegurar claim org en token (modo dev relajado)
-async function hasOrgClaimMatch(): Promise<boolean> {
-  const local = (typeof window !== "undefined" && (location.hostname.includes("localhost") || localStorage.getItem("forceLocalInventory") === "1"));
-  if (DEV_NO_CLAIM || local) return true;
-  if (!user) return false;
-  try {
-    const tok = await user.getIdTokenResult(true);
-    const claims: any = tok?.claims || {};
-    const claim = claims.orgId ?? claims.org ?? claims.org_id ?? null;
-    return !!orgId && claim === orgId;
-  } catch { return false; }
-}
-
-// cola local DEV (sin server) — PARCHEA el optional chain en `new`
-function devEnqueue(order: any) {
-  try {
-    const key = "workQueue:dev";
-    const list = JSON.parse(localStorage.getItem(key) || "[]");
-    list.push(order);
-    localStorage.setItem(key, JSON.stringify(list));
-    // broadcast seguro (sin `new ?.`)
-    try {
-      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
-        const BC: any = (window as any).BroadcastChannel;
-        const ch = new BC("fz:workQueue");
-        ch.postMessage(order);
-        ch.close?.();
-      }
-    } catch { }
-  } catch { }
-}
-
-// crear orden + encolar worker
-async function placeOrder() {
-  if (!canPlace) { alert("Completa tamaño e ingredientes."); return; }
-  if (!orgId) { alert("No hay organización configurada."); return; }
-
-  const orderData = {
-    orgId,
-    customerUid: user?.uid || "anon",
-    customerName: user?.displayName || "Cliente",
-    items: Object.entries(qtyById).map(([id, qty]) => ({
-      id, qty, name: byId[id]?.name || id, unit: byId[id]?.unit
-    })),
-    total: pricingBreakdown.totalPublic,
-    status: "pending",
-    createdAt: serverTimestamp(),
-    source,
-    size: sizeId,
-  };
-
-  try {
-    if (source === "kiosk" || source === "worker") {
-      await addDoc(collection(db, "orders"), orderData);
-      alert(source === "worker" ? "¡Orden creada por Staff!" : "¡Orden enviada!");
-      clearAll();
-      // Stay on page for Kiosk/Worker to allow next order immediately
-      if (source === "worker") {
-        // Optional: could navigate back to menu, but staying allows rapid entry
-        // nav("/menu"); 
-      }
-    } else {
-      // Client app logic
-      if (DEV_NO_CLAIM) {
-        devEnqueue(orderData);
-        alert("¡Orden enviada (Modo DEV)!");
-        clearAll();
-        nav("/cliente");
-      } else {
-        await addDoc(collection(db, "orders"), orderData);
-        alert("¡Orden enviada!");
-        clearAll();
-        nav("/cliente");
-      }
-    }
-  } catch (e: any) {
-    console.error(e);
-    alert("Error al enviar orden: " + e.message);
+  function clearAll() {
+    setQtyById({}); setBlendPct(0); setIsMixing(false); setSizeId(null);
+    setCategoryIndex(0); setSelectedItemId(null); setStation("prep"); setCarryTop(null);
   }
-}
 
-// --- Render Helpers ---
-const currentTicket = (
-  <Ticket
-    size={sizeId}
-    items={Object.entries(qtyById).map(([k, v]) => ({
-      name: byId[k]?.name || k,
-      qty: Number(v),
-      unit: byId[k]?.unit
-    }))}
-    total={money(pricingBreakdown.totalPublic)}
-    blendPct={blendPct}
-  />
-);
+  // hielo visual
+  const iceItemId = items.find((i) => roleOfItem(i) === "ice")?.id ?? null;
+  const iceQty = (iceItemId ? qtyById[iceItemId] : 0) || 0;
+  const iceCubes = Math.max(0, Math.min(12, Math.round(iceQty / 50) + (iceQty > 0 ? 2 : 0)));
 
-return (
-  <div className="game-container">
-    {/* 1. TOP RAIL (Tickets) */}
-    <div className="ticket-rail">
-      {currentTicket}
-      <div style={{ opacity: 0.5, transform: "scale(0.9)" }}>
-        <Ticket size="S" items={[]} total="$0" blendPct={0} />
+  // orden de categorías
+  useEffect(() => {
+    const sequence: MachineCategory[] = [];
+    (["ice", "liquid", "powder", "condensed"] as const).forEach((cat) => {
+      let itemIds: string[] = [];
+      if (cat === "ice") itemIds = items.filter((it) => roleOfItem(it) === "ice").map((it) => it.id as string);
+      else if (cat === "liquid") itemIds = items.filter((it) => (roleOfItem(it) === "liquid" || roleOfItem(it) === "sparkling") && (it.unit as SvcUnit) === "ml").map((it) => it.id as string);
+      else if (cat === "powder") itemIds = items.filter((it) => roleOfItem(it) === "mixable" && (it.unit as SvcUnit) === "g").map((it) => it.id as string);
+      else if (cat === "condensed") itemIds = items.filter((it) => it.id === "cond").map((it) => it.id as string);
+      if (itemIds.length > 0) { const info = CATEGORY_INFO[cat]; sequence.push({ id: cat, label: info.label, color: info.color, emoji: info.emoji, items: itemIds }); }
+    });
+    setCategorySequence(sequence); setCategoryIndex(0); setSelectedItemId(null);
+  }, [items]);
+
+  // seleccionar siempre el primero
+  useEffect(() => {
+    if (!categorySequence.length) return;
+    if (categoryIndex >= categorySequence.length) return;
+    const currentCat = categorySequence[categoryIndex];
+    setSelectedItemId(currentCat.items[0] || null);
+  }, [categoryIndex, categorySequence]);
+
+  // llegada a categoría → posicionar cabezal
+  useEffect(() => {
+    if (!categorySequence.length || station !== "prep") return;
+    const cat = categorySequence[categoryIndex];
+    setCarX(slotXFor(cat?.items, selectedItemId));
+    setMachinePhase("arrive");
+    const t1 = setTimeout(() => { setCarLowered(true); setMachinePhase("ready"); }, 280);
+    return () => { clearTimeout(t1); };
+  }, [categorySequence, categoryIndex, station, selectedItemId]);
+
+  useEffect(() => {
+    if (station !== "prep") return;
+    const cat = categorySequence[categoryIndex];
+    if (!cat) return;
+    setCarX(slotXFor(cat.items, selectedItemId));
+  }, [selectedItemId, station, categoryIndex, categorySequence]);
+
+  function fireArcFromEl(fromEl: HTMLElement, color = "#ec4899") {
+    const cup = cupRef.current; if (!cup) return;
+    const fr = fromEl.getBoundingClientRect(), to = cup.getBoundingClientRect();
+    const from = { x: fr.left + fr.width / 2, y: fr.top + fr.height / 2 };
+    const midX = to.left + to.width / 2, midY = to.top + 30;
+    setArc({ from, to: { x: midX, y: midY }, color }); setTimeout(() => setArc(null), 900);
+  }
+
+  // loop mix
+  useEffect(() => {
+    if (!isMixing) { if (mixTimer.current) { clearInterval(mixTimer.current); mixTimer.current = null; } return; }
+    mixTimer.current = setInterval(() => setBlendPct((p) => (p >= 100 ? 100 : p + 1)), 130);
+    return () => { if (mixTimer.current) clearInterval(mixTimer.current); };
+  }, [isMixing]);
+
+  // Helper: asegurar claim org en token (modo dev relajado)
+  async function hasOrgClaimMatch(): Promise<boolean> {
+    const local = (typeof window !== "undefined" && (location.hostname.includes("localhost") || localStorage.getItem("forceLocalInventory") === "1"));
+    if (DEV_NO_CLAIM || local) return true;
+    if (!user) return false;
+    try {
+      const tok = await user.getIdTokenResult(true);
+      const claims: any = tok?.claims || {};
+      const claim = claims.orgId ?? claims.org ?? claims.org_id ?? null;
+      return !!orgId && claim === orgId;
+    } catch { return false; }
+  }
+
+  // cola local DEV (sin server) — PARCHEA el optional chain en `new`
+  function devEnqueue(order: any) {
+    try {
+      const key = "workQueue:dev";
+      const list = JSON.parse(localStorage.getItem(key) || "[]");
+      list.push(order);
+      localStorage.setItem(key, JSON.stringify(list));
+      // broadcast seguro (sin `new ?.`)
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const BC: any = (window as any).BroadcastChannel;
+          const ch = new BC("fz:workQueue");
+          ch.postMessage(order);
+          ch.close?.();
+        }
+      } catch { }
+    } catch { }
+  }
+
+  // crear orden + encolar worker
+  async function placeOrder() {
+    if (!canPlace) { alert("Completa tamaño e ingredientes."); return; }
+    if (!orgId) { alert("No hay organización configurada."); return; }
+
+    const orderData = {
+      orgId,
+      customerUid: user?.uid || "anon",
+      customerName: user?.displayName || "Cliente",
+      items: Object.entries(qtyById).map(([id, qty]) => ({
+        id, qty, name: byId[id]?.name || id, unit: byId[id]?.unit
+      })),
+      total: pricingBreakdown.totalPublic,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      source,
+      size: sizeId,
+    };
+
+    try {
+      if (source === "kiosk" || source === "worker") {
+        await addDoc(collection(db, "orders"), orderData);
+        alert(source === "worker" ? "¡Orden creada por Staff!" : "¡Orden enviada!");
+        clearAll();
+        // Stay on page for Kiosk/Worker to allow next order immediately
+        if (source === "worker") {
+          // Optional: could navigate back to menu, but staying allows rapid entry
+          // nav("/menu"); 
+        }
+      } else {
+        // Client app logic
+        if (DEV_NO_CLAIM) {
+          devEnqueue(orderData);
+          alert("¡Orden enviada (Modo DEV)!");
+          clearAll();
+          nav("/cliente");
+        } else {
+          await addDoc(collection(db, "orders"), orderData);
+          alert("¡Orden enviada!");
+          clearAll();
+          nav("/cliente");
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Error al enviar orden: " + e.message);
+    }
+  }
+
+  // --- Render Helpers ---
+  const currentTicket = (
+    <Ticket
+      size={sizeId}
+      items={Object.entries(qtyById).map(([k, v]) => ({
+        name: byId[k]?.name || k,
+        qty: Number(v),
+        unit: byId[k]?.unit
+      }))}
+      total={money(pricingBreakdown.totalPublic)}
+      blendPct={blendPct}
+    />
+  );
+
+  return (
+    <div className="game-container">
+      {/* 1. TOP RAIL (Tickets) */}
+      <div className="ticket-rail">
+        {currentTicket}
+        <div style={{ opacity: 0.5, transform: "scale(0.9)" }}>
+          <Ticket size="S" items={[]} total="$0" blendPct={0} />
+        </div>
+        {arc && <PourArc from={arc.from} to={arc.to} color={arc.color} />}
       </div>
-      {arc && <PourArc from={arc.from} to={arc.to} color={arc.color} />}
-    </div>
 
-    {/* 2. MAIN STAGE AREA */}
-    <div className="stage-container">
+      {/* 2. MAIN STAGE AREA */}
+      <div className="stage-container">
 
-      {/* --- PREP (BUILD) STATION --- */}
-      {station === "prep" && (
-        <div className="stage prep">
-          {/* Size Selector Overlay if no size selected */}
-          {!sizeId && (
-            <div style={{
-              position: "absolute", inset: 0, zIndex: 50,
-              background: "rgba(0,0,0,0.8)", display: "flex",
-              alignItems: "center", justifyContent: "center"
-            }}>
-              <div className="fz-card" style={{ padding: 32, textAlign: "center" }}>
-                <h2 style={{ marginBottom: 16, color: "var(--fz-ink)" }}>Selecciona Tamaño</h2>
-                <div className="size-selector" style={{ display: "flex", gap: 16 }}>
-                  {sizes.map((s) => (
-                    <button
-                      key={s.id}
-                      className={`fz-btn ${sizeId === s.id ? "primary" : "secondary"}`}
-                      onClick={() => setSizeId(s.id)}
-                      style={{ minWidth: 80 }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+        {/* --- PREP (BUILD) STATION --- */}
+        {station === "prep" && (
+          <div className="stage prep">
+            {/* Size Selector Overlay if no size selected */}
+            {!sizeId && (
+              <div style={{
+                position: "absolute", inset: 0, zIndex: 50,
+                background: "rgba(0,0,0,0.8)", display: "flex",
+                alignItems: "center", justifyContent: "center"
+              }}>
+                <div className="fz-card" style={{ padding: 32, textAlign: "center" }}>
+                  <h2 style={{ marginBottom: 16, color: "var(--fz-ink)" }}>Selecciona Tamaño</h2>
+                  <div className="size-selector" style={{ display: "flex", gap: 16 }}>
+                    {sizes.map((s) => (
+                      <button
+                        key={s.id}
+                        className={`fz-btn ${sizeId === s.id ? "primary" : "secondary"}`}
+                        onClick={() => setSizeId(s.id)}
+                        style={{ minWidth: 80 }}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Machine Area */}
-          <div className="machine-area">
-            {categorySequence.length > 0 && categoryIndex < categorySequence.length && (
-              <>
-                <DispenserMachine
-                  category={categorySequence[categoryIndex]}
-                  choices={categorySequence[categoryIndex].items}
-                  selectedItemId={selectedItemId}
-                  onSelectItem={setSelectedItemId}
-                  byId={byId}
-                  size={sizeId as any}
-                  muted={muted}
-                  speed={meterSpeed}
-                  onResolve={(outcome) => {
-                    if (selectedItemId) {
-                      const it = byId[selectedItemId];
-                      const role = it ? roleOfItem(it) : "mixable";
-                      const step = stepForRole(role, it?.unit as SvcUnit);
-                      addQtyCapped(selectedItemId, step);
+            {/* Machine Area */}
+            <div className="machine-area">
+              {categorySequence.length > 0 && categoryIndex < categorySequence.length && (
+                <>
+                  <DispenserMachine
+                    category={categorySequence[categoryIndex]}
+                    choices={categorySequence[categoryIndex].items}
+                    selectedItemId={selectedItemId}
+                    onSelectItem={setSelectedItemId}
+                    byId={byId}
+                    size={sizeId as any}
+                    muted={muted}
+                    speed={meterSpeed}
+                    onResolve={(outcome) => {
+                      if (selectedItemId) {
+                        const it = byId[selectedItemId];
+                        const role = it ? roleOfItem(it) : "mixable";
+                        const step = stepForRole(role, it?.unit as SvcUnit);
+                        addQtyCapped(selectedItemId, step);
 
-                      // FX
-                      const el = document.querySelector(".spout");
-                      if (el) fireArcFromEl(el as HTMLElement, categorySequence[categoryIndex].color);
-                    }
-                  }}
-                />
-
-                {/* Controls */}
-                <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "center" }}>
-                  <button
-                    className="fz-btn secondary"
-                    disabled={categoryIndex === 0}
-                    onClick={() => setCategoryIndex(i => i - 1)}
-                  >
-                    ◀ Anterior
-                  </button>
-                  <button
-                    className="fz-btn secondary"
-                    onClick={() => {
-                      if (categoryIndex < categorySequence.length - 1) {
-                        setCategoryIndex(i => i + 1);
-                      } else {
-                        setStation("mix");
+                        // FX
+                        const el = document.querySelector(".spout");
+                        if (el) fireArcFromEl(el as HTMLElement, categorySequence[categoryIndex].color);
                       }
                     }}
-                  >
-                    {categoryIndex < categorySequence.length - 1 ? "Siguiente ▶" : "Ir a Mezclar ▶"}
-                  </button>
+                  />
+
+                  {/* Controls */}
+                  <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "center" }}>
+                    <button
+                      className="fz-btn secondary"
+                      disabled={categoryIndex === 0}
+                      onClick={() => setCategoryIndex(i => i - 1)}
+                    >
+                      ◀ Anterior
+                    </button>
+                    <button
+                      className="fz-btn secondary"
+                      onClick={() => {
+                        if (categoryIndex < categorySequence.length - 1) {
+                          setCategoryIndex(i => i + 1);
+                        } else {
+                          setStation("mix");
+                        }
+                      }}
+                    >
+                      {categoryIndex < categorySequence.length - 1 ? "Siguiente ▶" : "Ir a Mezclar ▶"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- MIX STATION --- */}
+        {station === "mix" && (
+          <div className="stage mix" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <div style={{ position: "relative" }}>
+              <BlenderHead spinning={isMixing} />
+              <Cup fillPct={fillPct} width={260} mixing={isMixing} />
+            </div>
+
+            <div style={{ marginTop: 32, textAlign: "center" }}>
+              <div className="fz-card" style={{ padding: 16, display: "inline-block" }}>
+                <div style={{ marginBottom: 8, fontWeight: "bold" }}>Nivel de Mezcla</div>
+                <div style={{ width: 200, height: 20, background: "#e2e8f0", borderRadius: 10, overflow: "hidden", border: "2px solid #cbd5e1", margin: "0 auto" }}>
+                  <div style={{ width: `${blendPct}%`, height: "100%", background: "linear-gradient(90deg, #f59e0b, #22c55e)" }} />
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- MIX STATION --- */}
-      {station === "mix" && (
-        <div className="stage mix" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
-          <div style={{ position: "relative" }}>
-            <BlenderHead spinning={isMixing} />
-            <Cup fillPct={fillPct} width={260} mixing={isMixing} />
-          </div>
-
-          <div style={{ marginTop: 32, textAlign: "center" }}>
-            <div className="fz-card" style={{ padding: 16, display: "inline-block" }}>
-              <div style={{ marginBottom: 8, fontWeight: "bold" }}>Nivel de Mezcla</div>
-              <div style={{ width: 200, height: 20, background: "#e2e8f0", borderRadius: 10, overflow: "hidden", border: "2px solid #cbd5e1", margin: "0 auto" }}>
-                <div style={{ width: `${blendPct}%`, height: "100%", background: "linear-gradient(90deg, #f59e0b, #22c55e)" }} />
+                <div style={{ marginTop: 4, fontSize: 12, color: "#64748b" }}>{blendPct}%</div>
               </div>
-              <div style={{ marginTop: 4, fontSize: 12, color: "#64748b" }}>{blendPct}%</div>
-            </div>
 
-            <div style={{ marginTop: 16 }}>
-              <button
-                className={`fz-btn ${isMixing ? "secondary" : "primary"}`}
-                onMouseDown={() => setIsMixing(true)}
-                onMouseUp={() => setIsMixing(false)}
-                onMouseLeave={() => setIsMixing(false)}
-                onTouchStart={() => setIsMixing(true)}
-                onTouchEnd={() => setIsMixing(false)}
-              >
-                {isMixing ? "Mezclando..." : "Mantener para Mezclar"}
-              </button>
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <button className="fz-btn ghost" onClick={() => setStation("top")}>Terminar Mezcla ▶</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- TOP STATION --- */}
-      {station === "top" && (
-        <div className="stage top" style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, height: "100%" }}>
-          <div style={{ display: "inline-block", position: "relative", marginBottom: "auto" }}>
-            <Cup fillPct={fillPct} width={260} foam />
-          </div>
-
-          <div className="toppings-shelf" style={{
-            width: "100%",
-            background: "rgba(255,255,255,0.9)", padding: 16,
-            display: "flex", gap: 16, overflowX: "auto",
-            borderTop: "4px solid var(--fz-border)",
-            justifyContent: "center"
-          }}>
-            {items.filter(i => roleOfItem(i) === "topping" || roleOfItem(i) === "whipped").map(it => (
-              <div key={it.id} style={{ flex: "0 0 auto", textAlign: "center" }}>
-                <TopBowl
-                  id={it.id}
-                  emoji={EMOJI_BY_ROLE[roleOfItem(it)]}
-                  label={it.name}
-                  onPick={() => addQty(it.id, 1)}
-                />
-                <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 4 }}>x{qtyById[it.id] || 0}</div>
+              <div style={{ marginTop: 16 }}>
+                <button
+                  className={`fz-btn ${isMixing ? "secondary" : "primary"}`}
+                  onMouseDown={() => setIsMixing(true)}
+                  onMouseUp={() => setIsMixing(false)}
+                  onMouseLeave={() => setIsMixing(false)}
+                  onTouchStart={() => setIsMixing(true)}
+                  onTouchEnd={() => setIsMixing(false)}
+                >
+                  {isMixing ? "Mezclando..." : "Mantener para Mezclar"}
+                </button>
               </div>
-            ))}
+
+              <div style={{ marginTop: 16 }}>
+                <button className="fz-btn ghost" onClick={() => setStation("top")}>Terminar Mezcla ▶</button>
+              </div>
+            </div>
           </div>
+        )}
 
-          <div style={{ position: "absolute", top: 20, right: 20 }}>
-            <button className="fz-btn primary" onClick={placeOrder}>¡TERMINAR ORDEN!</button>
+        {/* --- TOP STATION --- */}
+        {station === "top" && (
+          <div className="stage top" style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 40, height: "100%" }}>
+            <div style={{ display: "inline-block", position: "relative", marginBottom: "auto" }}>
+              <Cup fillPct={fillPct} width={260} foam />
+            </div>
+
+            <div className="toppings-shelf" style={{
+              width: "100%",
+              background: "rgba(255,255,255,0.9)", padding: 16,
+              display: "flex", gap: 16, overflowX: "auto",
+              borderTop: "4px solid var(--fz-border)",
+              justifyContent: "center"
+            }}>
+              {items.filter(i => roleOfItem(i) === "topping" || roleOfItem(i) === "whipped").map(it => (
+                <div key={it.id} style={{ flex: "0 0 auto", textAlign: "center" }}>
+                  <TopBowl
+                    id={it.id}
+                    emoji={EMOJI_BY_ROLE[roleOfItem(it)]}
+                    label={it.name}
+                    onPick={() => addQty(it.id, 1)}
+                  />
+                  <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 4 }}>x{qtyById[it.id] || 0}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ position: "absolute", top: 20, right: 20 }}>
+              <button className="fz-btn primary" onClick={placeOrder}>¡TERMINAR ORDEN!</button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
+      </div>
+
+      {/* 3. BOTTOM TABS */}
+      <div className="station-tabs">
+        <button className={`tab-btn prep ${station === "prep" ? "active" : ""}`} onClick={() => setStation("prep")}>
+          <span>🏗️</span>
+          <span>Build</span>
+        </button>
+        <button className={`tab-btn mix ${station === "mix" ? "active" : ""}`} onClick={() => setStation("mix")}>
+          <span>🌪️</span>
+          <span>Mix</span>
+        </button>
+        <button className={`tab-btn top ${station === "top" ? "active" : ""}`} onClick={() => setStation("top")}>
+          <span>🍒</span>
+          <span>Top</span>
+        </button>
+      </div>
+
+      {/* Global FX */}
+      <PourGuide show={false} />
     </div>
-
-    {/* 3. BOTTOM TABS */}
-    <div className="station-tabs">
-      <button className={`tab-btn prep ${station === "prep" ? "active" : ""}`} onClick={() => setStation("prep")}>
-        <span>🏗️</span>
-        <span>Build</span>
-      </button>
-      <button className={`tab-btn mix ${station === "mix" ? "active" : ""}`} onClick={() => setStation("mix")}>
-        <span>🌪️</span>
-        <span>Mix</span>
-      </button>
-      <button className={`tab-btn top ${station === "top" ? "active" : ""}`} onClick={() => setStation("top")}>
-        <span>🍒</span>
-        <span>Top</span>
-      </button>
-    </div>
-
-    {/* Global FX */}
-    <PourGuide show={false} />
-  </div>
-);
+  );
 }

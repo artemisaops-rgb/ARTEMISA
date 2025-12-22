@@ -9,12 +9,15 @@ import { useRole } from "@/hooks/useRole";
 import { useOwnerMode } from "@/contexts/OwnerMode";
 
 import {
-  checkoutStrict,
-  deliverOrder,
+  createOrderStrict,
+  markDelivered,
+  calcTotals,
   type CartItem as PosCartItem,
   type PayMethod,
-  calcTotals,
-} from "@/lib/pos.helpers";
+} from "@/services/order";
+
+// Alias local para compatibilidad si hiciera falta, pero CartItem ya viene del servicio.
+// PayMethod también.
 
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { redeemOneFreeBeverage } from "@/lib/customers";
@@ -56,7 +59,7 @@ function normalizeCustomer(c: any): CustomerUI {
 }
 
 export default function Carrito() {
-  const { items, inc, dec, remove, clear } = useCart();
+  const { items, inc, dec, remove, clear, setQty } = useCart();
 
   const { user } = useAuth();
   const { role, isStaff, realRole } = useRole(user?.uid);
@@ -214,8 +217,8 @@ export default function Carrito() {
       setLoading(true);
 
       const cid = customerIdForCheckout;
-      const orderId = await checkoutStrict(db, itemsForCheckout, payMethod, user.uid, cid);
-      await deliverOrder(db, orderId);
+      const orderId = await createOrderStrict(db, itemsForCheckout, payMethod, user.uid, cid);
+      await markDelivered(db, orderId);
 
       if (cid && useCredit && selected?.id) {
         await redeemOneFreeBeverage(db, selected.id);
@@ -260,7 +263,13 @@ export default function Carrito() {
           </div>
           <div className="flex items-center gap-2">
             <button className="px-3 py-1 border rounded-lg" onClick={() => dec(it.cartKey)}>-</button>
-            <div className="w-6 text-center">{it.qty}</div>
+            <input
+              type="number"
+              min={0}
+              className="w-16 text-center border rounded mx-1"
+              value={it.qty}
+              onChange={(e) => setQty(it.cartKey, Math.max(0, parseInt(e.target.value) || 0))}
+            />
             <button className="px-3 py-1 border rounded-lg" onClick={() => inc(it.cartKey)}>+</button>
             <div className="w-28 text-right font-medium">{money(it.price * it.qty)}</div>
             <button className="px-3 py-1 border rounded-lg" onClick={() => remove(it.cartKey)}>Quitar</button>
@@ -347,8 +356,8 @@ export default function Carrito() {
                         {Number(selected?.freeCredits || 0) <= 0
                           ? "No tiene créditos disponibles."
                           : beveragesInCart.length === 0
-                          ? "Agrega al menos 1 bebida para canjear."
-                          : "El canje no aplica en este carrito."}
+                            ? "Agrega al menos 1 bebida para canjear."
+                            : "El canje no aplica en este carrito."}
                       </div>
                     )}
                   </div>
@@ -400,15 +409,15 @@ export default function Carrito() {
                 disabled={
                   loading ||
                   !canOperateByRole ||
-                  totals.totalRounded <= 0 ||
+                  totals.totalRounded < 0 ||
                   (isStaff && !fastSale && !selected)
                 }
                 title={
                   !canOperateByRole
                     ? "No tienes permisos para confirmar pagos"
                     : isStaff && !fastSale && !selected
-                    ? "Selecciona un cliente"
-                    : ""
+                      ? "Selecciona un cliente"
+                      : ""
                 }
               >
                 {loading ? "Pagando..." : "Confirmar pago"}

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { collection, doc, onSnapshot, query, where, orderBy, getDoc } from "firebase/firestore";
-import { db, getOrgId } from "@/services/firebase";
+// import { collection, doc, onSnapshot, query, where, orderBy, getDoc } from "firebase/firestore"; // <-- eliminado
+import { getOrgId } from "@/services/firebase";
 import { useAuth } from "@/contexts/Auth";
-
-const ymd = (d = new Date()) => d.toISOString().slice(0, 10);
+import { subscribeToOpeningStatus, subscribeToLowStockCount } from "@/services/worker";
+import { subscribeToPendingOrdersCount } from "@/services/order";
 
 export default function WorkerPanel() {
   const { user } = useAuth();
@@ -17,40 +17,19 @@ export default function WorkerPanel() {
   const [pendingCount, setPendingCount] = useState(0);
   const [lowCount, setLowCount] = useState(0);
 
+  // 1. Estado de apertura (Worker Service)
   useEffect(() => {
-    if (!uid) { setOpeningStatus("absent"); return; }
-    const ref = doc(collection(db, "openings"), `${ymd()}_${uid}`);
-    getDoc(ref).then((s) => {
-      if (!s.exists()) return setOpeningStatus("absent");
-      const v: any = s.data();
-      setOpeningStatus(v?.status === "closed" ? "closed" : "open");
-    }).catch(() => setOpeningStatus("absent"));
+    return subscribeToOpeningStatus(uid, setOpeningStatus);
   }, [uid]);
 
+  // 2. Pedidos pendientes (Order Service - migrado lógica aquí)
   useEffect(() => {
-    const qy = query(
-      collection(db, "orders"),
-      where("orgId", "==", orgId),
-      where("status", "==", "pending"),
-      orderBy("createdAt", "desc")
-    );
-    const unsub = onSnapshot(qy, (snap) => setPendingCount(snap.size));
-    return () => unsub();
+    return subscribeToPendingOrdersCount(orgId, setPendingCount);
   }, [orgId]);
 
+  // 3. Insumos bajo mínimo (Worker Service)
   useEffect(() => {
-    const qy = query(collection(db, "inventoryItems"), where("orgId", "==", orgId));
-    const unsub = onSnapshot(qy, (snap) => {
-      let n = 0;
-      snap.forEach((d) => {
-        const x: any = d.data();
-        const stock = Number(x?.stock || 0);
-        const min = x?.minStock != null ? Number(x.minStock) : Number(x.min || 0);
-        if (!Number.isNaN(min) && stock <= min) n += 1;
-      });
-      setLowCount(n);
-    });
-    return () => unsub();
+    return subscribeToLowStockCount(orgId, setLowCount);
   }, [orgId]);
 
   const openLabel = useMemo(() => {
@@ -72,7 +51,7 @@ export default function WorkerPanel() {
             <button className="btn btn-primary" onClick={() => navigate("/apertura")}>Ir a Apertura</button>
           )}
         </div>
-        <div style={{marginTop:12}} className="row-between">
+        <div style={{ marginTop: 12 }} className="row-between">
           <div className="text-xl font-semibold">{openLabel}</div>
         </div>
       </section>
@@ -106,8 +85,9 @@ function Kpi({ title, value, to }: { title: string; value: number; to: string })
 
 function QuickLink({ to, label }: { to: string; label: string }) {
   return (
-    <Link to={to} className="btn" style={{textAlign:"center"}}>
+    <Link to={to} className="btn" style={{ textAlign: "center" }}>
       {label}
     </Link>
   );
 }
+

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { db, getOrgId } from "@/services/firebase";
+// import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"; // eliminado
+import { getOrgId } from "@/services/firebase";
 import { useAuth } from "@/contexts/Auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getTodaysShiftTasks, saveShiftTasks } from "@/services/worker";
 
 type TaskKey = "apertura" | "durante" | "cierre" | "limpieza" | "compras";
 const DEFAULT_LIST: Record<TaskKey, string[]> = {
@@ -35,10 +36,6 @@ const DEFAULT_LIST: Record<TaskKey, string[]> = {
   ],
 };
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function Tareas() {
   const { user } = useAuth();
   const orgId = getOrgId();
@@ -46,9 +43,7 @@ export default function Tareas() {
 
   useEffect(() => {
     if (!user) return;
-    const id = `${todayKey()}_${user.uid}`;
-    const ref = doc(db, "shiftTasks", id);
-    getDoc(ref).then((s) => setData((s.data() as any)?.checks ?? {}));
+    getTodaysShiftTasks(user.uid).then(setData);
   }, [user?.uid]);
 
   const toggle = (k: string) =>
@@ -56,17 +51,12 @@ export default function Tareas() {
 
   const save = async () => {
     if (!user) return;
-    const id = `${todayKey()}_${user.uid}`;
-    const ref = doc(db, "shiftTasks", id);
-    await setDoc(ref, {
-      id,
-      orgId,
-      userId: user.uid,
-      checks: data,
-      updatedAt: serverTimestamp(),
-      dateKey: todayKey(),
-    }, { merge: true });
-    alert("Guardado.");
+    try {
+      await saveShiftTasks(orgId, user.uid, data);
+      alert("Guardado.");
+    } catch (e) {
+      alert("Error al guardar: " + String(e));
+    }
   };
 
   return (
