@@ -208,12 +208,26 @@ export default function Carrito() {
   const totals = useMemo(() => calcTotals(itemsForCheckout), [itemsForCheckout]);
   const money = (n: number) => `$${Number(n || 0).toLocaleString()}`;
 
+  /* ---------- Estado de error / éxito en UI ---------- */
+  const [uiError, setUiError] = useState<string | null>(null);
+
   const pagar = async () => {
     if (loading) return;
-    if (!canOperateByRole) return alert("No tienes permisos para confirmar pagos con este usuario.");
+    setUiError(null);
+
+    if (!canOperateByRole) {
+      setUiError("No tienes permisos para confirmar pagos con este usuario.");
+      return;
+    }
     try {
-      if (!itemsForCheckout.length) return alert("No hay productos en el carrito");
-      if (!user?.uid) return alert("Debes iniciar sesión");
+      if (!itemsForCheckout.length) {
+        setUiError("No hay productos en el carrito");
+        return;
+      }
+      if (!user?.uid) {
+        setUiError("Debes iniciar sesión");
+        return;
+      }
       setLoading(true);
 
       const cid = customerIdForCheckout;
@@ -225,15 +239,22 @@ export default function Carrito() {
       }
 
       clear();
-      alert("Venta registrada.");
       if (isStaff) {
         setSelected(null);
         setFastSale(true);
       }
       setUseCredit(false);
+
+      // Feedback mejorado: Toast temporal
+      const successMsg = document.createElement("div");
+      successMsg.innerText = "✅ Venta registrada y entregada";
+      successMsg.style.cssText = "position:fixed;top:20px;right:20px;background:#22c55e;color:white;padding:12px 24px;border-radius:8px;z-index:9999;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)";
+      document.body.appendChild(successMsg);
+      setTimeout(() => successMsg.remove(), 3000);
+
     } catch (e: any) {
       console.error(e);
-      alert("No se pudo completar el pago: " + (e?.message || e));
+      setUiError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
@@ -242,6 +263,12 @@ export default function Carrito() {
   return (
     <div className="container-app p-6 pb-28 space-y-4">
       <h1 className="text-2xl font-bold">Carrito</h1>
+
+      {uiError && (
+        <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-medium">
+          ⚠️ {uiError}
+        </div>
+      )}
 
       {ownerMonitor && (
         <div className="rounded-2xl border bg-amber-50 text-amber-800 p-3">

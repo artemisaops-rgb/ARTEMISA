@@ -76,7 +76,7 @@ type Preset = "today" | "yesterday" | "7d" | "month" | "custom";
 
 export default function Ventas() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filter, setFilter] = useState<OrderStatus | "all">("pending");
+  const [filter, setFilter] = useState<OrderStatus | "all">("all");
   const [pay, setPay] = useState<PayMethod | "all">("all");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
